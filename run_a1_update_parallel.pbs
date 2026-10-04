@@ -1,0 +1,17 @@
+#!/bin/bash
+#PBS -N anhdis_a1_update
+#PBS -l nodes=qcexnod62:ppn=12
+#PBS -l mem=8gb
+#PBS -l walltime=12:00:00
+#PBS -S /bin/bash
+#PBS -j oe
+#PBS -o a1_update_parallel.out
+#PBS -V
+
+cd "$PBS_O_WORKDIR" || exit 1
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+/bin/bash -lc 'python3 --version && python3 -u ./a1_geometries.py --workers 12 --update --modes 1'

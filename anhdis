@@ -1,0 +1,1698 @@
+#!/usr/bin/env python3
+"""Interactive setup and stage launcher for the AnhDis a1--a7 workflow.
+
+The helper edits the existing assignments in config.py and launches the
+scientific stages either directly or through PBS.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import csv
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import socket
+import subprocess
+import sys
+import types
+
+from single_point_templates import generate_single_point_header
+from workflow_utils import format_elapsed_time
+
+
+BEGIN_MARKER = "# >>> ANHDIS INTERACTIVE SETTINGS >>>"
+END_MARKER = "# <<< ANHDIS INTERACTIVE SETTINGS <<<"
+ZERO_TEMPERATURE_K = 1.0e-4
+PROGRAM_VERSION = "1.3"
+PROGRAM_AUTHORS = "David F. Macias-Pinilla, David Catalán and Daniel Roca"
+MODE_DICTIONARY_NAMES = (
+    "Q_ENERGY_ANG_BY_MODE",
+    "FIT_MODEL_BY_MODE",
+    "FIT_DEGREE_BY_MODE",
+    "FIT_Q_RANGE_ANG_BY_MODE",
+    "FIT_MONOTONIC_OUTWARD_BY_MODE",
+    "FIT_MAX_CUBIC_FACTOR_BY_MODE",
+    "FIT_EXTRA_WEIGHT_Q_BY_MODE",
+    "PCHIP_TAIL_CURVATURE_FACTOR_BY_MODE",
+)
+
+
+def print_banner():
+    print(
+        rf"""
+======================================================================
+                         A n h D i s
+        Anharmonic Vibrational Distributions and Ensembles
+----------------------------------------------------------------------
+  Builds 1D Cartesian/curvilinear potentials and samples quantum
+  thermal positions and momenta for molecular nuclear ensembles.
+
+  Authors : {PROGRAM_AUTHORS}
+  Version : {PROGRAM_VERSION}
+======================================================================"""
+    )
+
+
+def load_config(config_path):
+    """Load config.py from source, never from a potentially stale .pyc file."""
+    config_path = Path(config_path).resolve()
+    module = types.ModuleType("_anhdis_active_config")
+    module.__file__ = str(config_path)
+    module.__package__ = None
+    source = config_path.read_bytes()
+    exec(compile(source, str(config_path), "exec"), module.__dict__)
+    return module
+
+
+def display_path(value, project_root):
+    path = Path(value)
+    try:
+        return str(path.resolve().relative_to(Path(project_root).resolve()))
+    except ValueError:
+        return str(path)
+
+
+def opt_freq_output(active):
+    """Return the new generic source path, with legacy-config compatibility."""
+    value = getattr(active, "OPT_FREQ_OUTPUT", None)
+    if value is None:
+        value = getattr(active, "GAUSSIAN_LOG", None)
+    if value is None:
+        raise ValueError("Define OPT_FREQ_OUTPUT (or legacy GAUSSIAN_LOG) in config.py.")
+    return Path(value)
+
+
+def opt_freq_software(active):
+    """Return the configured Gaussian/ORCA selector."""
+    value = str(getattr(active, "OPT_FREQ_SOFTWARE", "auto")).strip().lower()
+    if value not in {"auto", "gaussian", "orca"}:
+        raise ValueError("OPT_FREQ_SOFTWARE must be auto, gaussian, or orca.")
+    return value
+
+
+def single_point_software(active):
+    """Return the configured a2--a5 Gaussian/ORCA selector."""
+    value = str(getattr(active, "SINGLE_POINT_SOFTWARE", "gaussian")).strip().lower()
+    if value not in {"auto", "gaussian", "orca"}:
+        raise ValueError("SINGLE_POINT_SOFTWARE must be auto, gaussian, or orca.")
+    return value
+
+
+def resolved_single_point_software(active, scan=None):
+    """Resolve the a2 backend, using a1 metadata when the setting is auto."""
+    value = single_point_software(active)
+    if value == "auto":
+        if scan is not None:
+            value = str(scan.get("opt_freq_software", "")).strip().lower()
+        if value not in {"gaussian", "orca"}:
+            source = opt_freq_software(active)
+            if source in {"gaussian", "orca"}:
+                value = source
+    if value not in {"gaussian", "orca"}:
+        raise ValueError(
+            "Cannot resolve SINGLE_POINT_SOFTWARE=auto before a1; select gaussian or orca."
+        )
+    return value
+
+
+def single_point_header(active, software):
+    """Return the template associated with a resolved a2 backend."""
+    if software == "gaussian":
+        return Path(active.GAUSSIAN_HEADER)
+    return Path(getattr(active, "ORCA_HEADER", Path(active.PROJECT_ROOT) / "orca_head.inp"))
+
+
+def path_expression(value, project_root):
+    """Represent a path relative to PROJECT_ROOT whenever possible."""
+    raw = os.path.expandvars(os.path.expanduser(str(value).strip()))
+    path = Path(raw)
+    if not path.is_absolute():
+        return f"PROJECT_ROOT / {str(path)!r}"
+    try:
+        relative = path.resolve().relative_to(Path(project_root).resolve())
+    except ValueError:
+        return f"Path({str(path)!r})"
+    return f"PROJECT_ROOT / {str(relative)!r}"
+
+
+def resolved_project_path(value, project_root):
+    """Resolve an interactive path relative to the calculation directory."""
+    raw = os.path.expandvars(os.path.expanduser(str(value).strip()))
+    path = Path(raw)
+    return path.resolve() if path.is_absolute() else (Path(project_root) / path).resolve()
+
+
+def unavailable_a7_output(path):
+    """Return True when a7 would refuse to use this output path."""
+    path = Path(path)
+    return path.exists() and (not path.is_dir() or any(path.iterdir()))
+
+
+def next_a7_output_path(path):
+    """Suggest the first unused/empty run-suffixed ensemble directory."""
+    path = Path(path).resolve()
+    index = 2
+    while True:
+        candidate = path.with_name(f"{path.name}_run{index}")
+        if not unavailable_a7_output(candidate):
+            return candidate
+        index += 1
+
+
+def choose_a7_output_if_needed(active, config_path, input_function=input):
+    """Prompt for a new a7 directory only when the configured one is occupied."""
+    project_root = Path(config_path).resolve().parent
+    configured = Path(active.ENSEMBLE_ROOT).resolve()
+    if not unavailable_a7_output(configured):
+        return None
+    print(f"The configured a7 output is not empty: {configured}")
+    suggestion = next_a7_output_path(configured)
+    while True:
+        answer = ask_text(
+            "New a7 output directory",
+            display_path(suggestion, project_root),
+            input_function,
+        )
+        candidate = resolved_project_path(answer, project_root)
+        if unavailable_a7_output(candidate):
+            print(f"That path is also nonempty: {candidate}")
+            suggestion = next_a7_output_path(candidate)
+            continue
+        print(f"This a7 run will write to: {candidate}")
+        return candidate
+
+
+def parse_modes(text):
+    """Parse 'all', blank, or values/ranges such as '1-5 8 11'."""
+    text = str(text).strip().lower().replace(",", " ")
+    if not text or text == "all":
+        return []
+    modes = set()
+    for token in text.split():
+        if "-" in token:
+            pieces = token.split("-")
+            if len(pieces) != 2:
+                raise ValueError(f"Invalid mode range: {token!r}.")
+            first, last = (int(item) for item in pieces)
+            if first < 1 or last < first:
+                raise ValueError(f"Invalid mode range: {token!r}.")
+            modes.update(range(first, last + 1))
+        else:
+            mode = int(token)
+            if mode < 1:
+                raise ValueError("Mode numbers must be positive.")
+            modes.add(mode)
+    return sorted(modes)
+
+
+def parse_nodes(text):
+    values = parse_modes(text)
+    if not values:
+        raise ValueError("At least one cluster node number is required.")
+    return values
+
+
+def compact_modes(modes):
+    """Format sorted mode numbers as compact ranges such as 1-4,7,10-12."""
+    values = sorted(set(int(mode) for mode in modes))
+    if not values:
+        return "none"
+    ranges = []
+    first = previous = values[0]
+    for value in values[1:]:
+        if value == previous + 1:
+            previous = value
+            continue
+        ranges.append(str(first) if first == previous else f"{first}-{previous}")
+        first = previous = value
+    ranges.append(str(first) if first == previous else f"{first}-{previous}")
+    return ",".join(ranges)
+
+
+def validate_q_grid(q_min, q_max, step):
+    q_min, q_max, step = float(q_min), float(q_max), float(step)
+    if not all(math.isfinite(value) for value in (q_min, q_max, step)):
+        raise ValueError("The Q-grid values must be finite.")
+    if step <= 0.0 or q_max <= q_min:
+        raise ValueError("Q_max must exceed Q_min and the step must be positive.")
+    n_steps = int(round((q_max - q_min) / step))
+    if n_steps < 1 or abs(q_min + n_steps * step - q_max) > 1.0e-10:
+        raise ValueError("Q_min and Q_max must be separated by an integer number of steps.")
+    zero_index = int(round(-q_min / step))
+    if zero_index < 0 or zero_index > n_steps or abs(q_min + zero_index * step) > 1.0e-10:
+        raise ValueError("The Q grid must contain Q=0 exactly.")
+    return q_min, q_max, step
+
+
+def normalize_temperature(value):
+    temperature = float(value)
+    if not math.isfinite(temperature) or temperature < 0.0:
+        raise ValueError("Temperature must be finite and non-negative.")
+    return ZERO_TEMPERATURE_K if temperature == 0.0 else temperature
+
+
+def _assignment_expressions(text):
+    """Return top-level assignment RHS source and exact character spans."""
+    tree = ast.parse(text or "\n")
+    line_offsets = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        line_offsets.append(offset)
+        offset += len(line)
+    if not line_offsets:
+        line_offsets.append(0)
+    assignments = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        names = [target.id for target in targets if isinstance(target, ast.Name)]
+        if len(names) != 1:
+            continue
+        name = names[0]
+        start = line_offsets[node.lineno - 1] + node.col_offset
+        end = line_offsets[node.end_lineno - 1] + node.end_col_offset
+        rhs = ast.get_source_segment(text, node.value)
+        assignments.setdefault(name, []).append((start, end, rhs))
+    return assignments
+
+
+def _replace_config_expressions(text, expressions):
+    """Replace original config assignments in place, preserving nearby comments."""
+    spans = _assignment_expressions(text)
+    replacements = []
+    missing = []
+    for name, rhs in expressions.items():
+        occurrences = spans.get(name, [])
+        if len(occurrences) > 1:
+            raise ValueError(f"config.py defines {name} more than once.")
+        if not occurrences:
+            missing.append((name, rhs))
+            continue
+        start, end, _ = occurrences[0]
+        replacements.append((start, end, f"{name} = {rhs}"))
+    for start, end, replacement in sorted(replacements, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    if missing:
+        anchor = "# ============================================================================\n# ADVANCED SETTINGS"
+        position = text.find(anchor)
+        if position < 0:
+            raise ValueError(
+                "config.py lacks required assignments and the USER/ADVANCED section anchor; "
+                "update it from the supplied reference config."
+            )
+        additions = [
+            "# Settings added in the USER SETTINGS section by ./anhdis.",
+            *(f"{name} = {rhs}" for name, rhs in missing),
+            "",
+        ]
+        text = text[:position] + "\n".join(additions) + "\n" + text[position:]
+    return text
+
+
+def migrate_legacy_managed_block(text):
+    """Move settings from an older end-of-file block into original assignments."""
+    has_begin = BEGIN_MARKER in text
+    has_end = END_MARKER in text
+    if has_begin != has_end:
+        raise ValueError("config.py contains an incomplete legacy AnhDis settings block.")
+    if not has_begin:
+        return text
+    prefix, remainder = text.split(BEGIN_MARKER, 1)
+    body, suffix = remainder.split(END_MARKER, 1)
+    legacy = {
+        name: occurrences[-1][2]
+        for name, occurrences in _assignment_expressions(body).items()
+    }
+    base = prefix.rstrip() + "\n" + suffix.lstrip("\n")
+    return _replace_config_expressions(base, legacy)
+
+
+def replace_config_expressions(text, expressions):
+    """Migrate legacy overrides, then edit the actual config assignments."""
+    return _replace_config_expressions(
+        migrate_legacy_managed_block(text), expressions,
+    )
+
+
+def save_config_text(config_path, new_text):
+    """Validate and atomically save config.py, retaining a one-file backup."""
+    config_path = Path(config_path).resolve()
+    backup = config_path.with_name(config_path.name + ".anhdis.bak")
+    shutil.copy2(config_path, backup)
+    temporary = config_path.with_name(config_path.stem + ".anhdis_tmp.py")
+    temporary.write_text(new_text)
+    try:
+        load_config(temporary)
+        os.replace(temporary, config_path)
+        # CPython timestamp-based bytecode caches may otherwise retain an old
+        # value when (for example) degree 5 is replaced by degree 3 within the
+        # same filesystem timestamp tick: both source files have equal size.
+        cache_directory = config_path.parent / "__pycache__"
+        if cache_directory.is_dir():
+            for cached_config in cache_directory.glob(f"{config_path.stem}.*.pyc"):
+                try:
+                    cached_config.unlink()
+                except OSError as exc:
+                    raise RuntimeError(
+                        f"Updated {config_path}, but could not remove stale Python "
+                        f"cache {cached_config}. Remove it before running a5."
+                    ) from exc
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return backup
+
+
+def update_config_assignments(config_path, assignments):
+    text = Path(config_path).read_text()
+    new_text = replace_config_expressions(
+        text, {name: repr(value) for name, value in assignments.items()},
+    )
+    return save_config_text(config_path, new_text)
+
+
+def migrate_legacy_config_file(config_path):
+    """Remove the old end override block on first use of the new launcher."""
+    config_path = Path(config_path).resolve()
+    text = config_path.read_text()
+    migrated = migrate_legacy_managed_block(text)
+    if migrated == text:
+        return None
+    return save_config_text(config_path, migrated)
+
+
+def ask_text(prompt, default, input_function=input):
+    answer = input_function(f"{prompt} [{default}]: ").strip()
+    return answer if answer else str(default)
+
+
+def ask_choice(prompt, choices, default, input_function=input):
+    labels = ", ".join(f"{number}={name}" for number, name in enumerate(choices, 1))
+    while True:
+        answer = input_function(f"{prompt} ({labels}) [{default}]: ").strip()
+        if not answer:
+            return default
+        if answer in choices:
+            return answer
+        try:
+            index = int(answer) - 1
+        except ValueError:
+            index = -1
+        if 0 <= index < len(choices):
+            return choices[index]
+        print("Invalid choice; enter its number or name.")
+
+
+def ask_number(prompt, default, converter=float, minimum=None, input_function=input):
+    while True:
+        answer = input_function(f"{prompt} [{default}]: ").strip()
+        try:
+            value = converter(answer) if answer else converter(default)
+        except ValueError:
+            print("Invalid numeric value.")
+            continue
+        if minimum is not None and value < minimum:
+            print(f"The value must be at least {minimum}.")
+            continue
+        return value
+
+
+def ask_yes_no(prompt, default=True, input_function=input):
+    suffix = "Y/n" if default else "y/N"
+    while True:
+        answer = input_function(f"{prompt} [{suffix}]: ").strip().lower()
+        if not answer:
+            return default
+        if answer in {"y", "yes", "s", "si", "sí"}:
+            return True
+        if answer in {"n", "no"}:
+            return False
+        print("Enter yes or no.")
+
+
+def mode_text(modes):
+    return "all" if not modes else " ".join(str(mode) for mode in modes)
+
+
+def ask_explicit_modes(prompt="Modes (e.g. 1-5 8)", input_function=input):
+    while True:
+        try:
+            modes = parse_modes(input_function(f"{prompt}: ").strip())
+            if not modes:
+                raise ValueError("Select at least one explicit mode.")
+            return modes
+        except ValueError as exc:
+            print(exc)
+
+
+def normalized_parallel_node(value):
+    node = str(value).strip().lower()
+    if node in {"", "auto", "any"}:
+        return "auto"
+    if re.fullmatch(r"\d+", node):
+        node = f"qcexnod{int(node):02d}"
+    if not re.fullmatch(r"qcexnod\d{2}", node):
+        raise ValueError("Use auto, a node number, or a name such as qcexnod56.")
+    return node
+
+
+def configure(config_path, input_function=input):
+    config_path = Path(config_path).resolve()
+    active = load_config(config_path)
+    project_root = config_path.parent
+
+    print("\nAnhDis calculation setup")
+    print("Press Enter to retain the value shown in brackets.\n")
+
+    source_software = ask_choice(
+        "Optimization/frequency software", ("auto", "gaussian", "orca"),
+        opt_freq_software(active), input_function,
+    )
+    log_name = ask_text(
+        "Optimization/frequency output (.log or .out)",
+        display_path(opt_freq_output(active), project_root), input_function,
+    )
+    if not str(log_name).strip():
+        raise ValueError("The optimization/frequency output path cannot be empty.")
+    point_software = ask_choice(
+        "Single-point software", ("auto", "gaussian", "orca"),
+        single_point_software(active), input_function,
+    )
+    effective_point_software = point_software
+    if effective_point_software == "auto" and source_software in {"gaussian", "orca"}:
+        effective_point_software = source_software
+    gaussian_header_name = display_path(active.GAUSSIAN_HEADER, project_root)
+    orca_header_name = display_path(
+        getattr(active, "ORCA_HEADER", project_root / "orca_head.inp"), project_root,
+    )
+    automatic_header = ask_yes_no(
+        "Generate the single-point header automatically from the opt/freq output",
+        bool(getattr(active, "AUTO_GENERATE_SINGLE_POINT_HEADER", True)),
+        input_function,
+    )
+    if automatic_header:
+        source_path = resolved_project_path(log_name, project_root)
+        if (
+            effective_point_software in {"gaussian", "orca"}
+            and source_software in {"gaussian", "orca"}
+            and effective_point_software != source_software
+        ):
+            raise ValueError(
+                "An automatic header cannot translate between Gaussian and ORCA. "
+                "Choose the same program or answer no and supply a manual template."
+            )
+        if source_path.is_file() and effective_point_software in {"gaussian", "orca"}:
+            destination = resolved_project_path(
+                gaussian_header_name if effective_point_software == "gaussian" else orca_header_name,
+                project_root,
+            )
+            generate_single_point_header(source_path, destination, effective_point_software)
+            print(f"Generated {effective_point_software.upper()} header: {destination}")
+            print("It will be regenerated by a2; inspect it before submitting calculations.")
+        else:
+            print("The header will be generated by a2 after a1 identifies the source program.")
+    elif effective_point_software == "orca":
+        orca_header_name = ask_text("ORCA single-point header", orca_header_name, input_function)
+    else:
+        gaussian_header_name = ask_text("Gaussian single-point header", gaussian_header_name, input_function)
+    coordinate_system = ask_choice(
+        "Coordinate model", ("curvilinear", "cartesian"),
+        str(getattr(active, "A1_COORDINATE_SYSTEM", "curvilinear")), input_function,
+    )
+
+    current_modes = list(getattr(active, "SELECTED_MODES", []))
+    while True:
+        try:
+            selected_modes = parse_modes(ask_text(
+                "Modes (all, or e.g. 1-5 8 11)", mode_text(current_modes), input_function,
+            ))
+            break
+        except ValueError as exc:
+            print(exc)
+
+    current_grid = list(getattr(active, "Q_ENERGY_ANG", [-0.4, 0.4]))
+    current_step = current_grid[1] - current_grid[0] if len(current_grid) > 1 else 0.1
+    while True:
+        q_min = ask_number(
+            "Default Q minimum (angstrom)", current_grid[0], float,
+            input_function=input_function,
+        )
+        q_max = ask_number(
+            "Default Q maximum (angstrom)", current_grid[-1], float,
+            input_function=input_function,
+        )
+        q_step = ask_number(
+            "Default Q step (angstrom)", current_step, float, 1.0e-12,
+            input_function,
+        )
+        try:
+            q_min, q_max, q_step = validate_q_grid(q_min, q_max, q_step)
+            break
+        except ValueError as exc:
+            print(exc)
+
+    energy_source = ask_choice(
+        "Electronic energy (AUTO follows the single-point method)",
+        ("SCF", "MP2", "CCSD", "CCSD(T)", "AUTO"),
+        str(getattr(active, "ENERGY_SOURCE", "AUTO")).upper(), input_function,
+    )
+    fit_model = ask_choice(
+        "Default potential model", ("polynomial", "pchip"),
+        str(getattr(active, "FIT_MODEL", "polynomial")).lower(), input_function,
+    )
+    fit_degree = int(getattr(active, "FIT_DEGREE", 4))
+    if fit_model == "polynomial":
+        while True:
+            fit_degree = ask_number(
+                "Default polynomial degree (2-6)", fit_degree, int, 2, input_function,
+            )
+            if fit_degree <= 6:
+                break
+            print("The current fitter supports polynomial degrees from 2 through 6.")
+
+    entered_temperature = ask_number(
+        "Temperature in K (enter 0 for the numerical 0 K limit)",
+        getattr(active, "TEMP", 298.15), float, 0.0, input_function,
+    )
+    temperature = normalize_temperature(entered_temperature)
+    if entered_temperature == 0.0:
+        print(f"Temperature 0 selected: storing {ZERO_TEMPERATURE_K:g} K.")
+
+    samples = ask_number(
+        "Number of geometries per ensemble", getattr(active, "NSAMPLES", 100),
+        int, 1, input_function,
+    )
+    seed = ask_number(
+        "Random seed", getattr(active, "A7_RANDOM_SEED", 1), int,
+        input_function=input_function,
+    )
+    workers = ask_number(
+        "a1 worker processes", getattr(active, "A1_WORKERS", 1), int, 1,
+        input_function,
+    )
+    a7_workers = ask_number(
+        "a7 geometry-reconstruction processes", getattr(active, "A7_WORKERS", 1),
+        int, 1, input_function,
+    )
+    while True:
+        try:
+            parallel_node = normalized_parallel_node(ask_text(
+                "Compute node for parallel a1/a7 (auto or qcexnodNN)",
+                getattr(active, "ANHDIS_PARALLEL_NODE", "auto"), input_function,
+            ))
+            break
+        except ValueError as exc:
+            print(exc)
+
+    previous_coordinate = str(getattr(active, "A1_COORDINATE_SYSTEM", "curvilinear"))
+    default_scan = display_path(active.SCAN_ROOT, project_root)
+    default_ensemble = display_path(active.ENSEMBLE_ROOT, project_root)
+    if coordinate_system != previous_coordinate:
+        default_scan = f"{coordinate_system}_scans"
+        default_ensemble = f"ensemble_{coordinate_system}"
+    scan_root = ask_text("Scan directory", default_scan, input_function)
+    ensemble_root = ask_text("Ensemble output directory", default_ensemble, input_function)
+
+    current_nodes = list(getattr(active, "ALLOWED_NODE_NUMS", [1]))
+    while True:
+        try:
+            nodes = parse_nodes(ask_text(
+                "Allowed single-point node numbers", mode_text(current_nodes), input_function,
+            ))
+            break
+        except ValueError as exc:
+            print(exc)
+    pbs_ppn = ask_number(
+        "CPU cores per single-point job", getattr(active, "PBS_PPN", 2), int, 1,
+        input_function,
+    )
+    reset_specific = ask_yes_no(
+        "Reset molecule-specific scan and fit overrides", True, input_function,
+    )
+
+    expressions = {
+        "OPT_FREQ_SOFTWARE": repr(source_software),
+        "OPT_FREQ_OUTPUT": path_expression(log_name, project_root),
+        "GAUSSIAN_LOG": "OPT_FREQ_OUTPUT",
+        "SINGLE_POINT_SOFTWARE": repr(point_software),
+        "AUTO_GENERATE_SINGLE_POINT_HEADER": repr(automatic_header),
+        "GAUSSIAN_HEADER": path_expression(gaussian_header_name, project_root),
+        "ORCA_HEADER": path_expression(orca_header_name, project_root),
+        "SCAN_ROOT": path_expression(scan_root, project_root),
+        "SELECTED_MODES": repr(selected_modes),
+        "A1_COORDINATE_SYSTEM": repr(coordinate_system),
+        "Q_ENERGY_ANG": f"make_q_grid({q_min!r}, {q_max!r}, {q_step!r})",
+        "ENERGY_SOURCE": repr(energy_source),
+        "FIT_MODEL": repr(fit_model),
+        "FIT_DEGREE": repr(fit_degree),
+        "TEMP": repr(temperature),
+        "NSAMPLES": repr(samples),
+        "A7_RANDOM_SEED": repr(seed),
+        "ENSEMBLE_ROOT": path_expression(ensemble_root, project_root),
+        "A1_WORKERS": repr(workers),
+        "A7_WORKERS": repr(a7_workers),
+        "ANHDIS_PARALLEL_NODE": repr(parallel_node),
+        "PBS_PPN": repr(pbs_ppn),
+        "ALLOWED_NODE_NUMS": repr(nodes),
+        "ALLOWED_NODES": '[f"qcexnod{number:02d}" for number in ALLOWED_NODE_NUMS]',
+    }
+    for name in MODE_DICTIONARY_NAMES:
+        value = {} if reset_specific else dict(getattr(active, name, {}))
+        expressions[name] = repr(value)
+    new_text = replace_config_expressions(config_path.read_text(), expressions)
+
+    backup = save_config_text(config_path, new_text)
+
+    print("\nConfiguration saved successfully.")
+    print(f"Active config: {config_path}")
+    print(f"Backup:       {backup}")
+    print("Run ./anhdis again and choose a workflow stage.")
+    print("The original assignments inside config.py were updated in place.")
+    print("For advanced changes, edit those settings directly in config.py.")
+
+
+def _regular_grid_description(values):
+    values = [float(value) for value in values]
+    if not values:
+        return "empty"
+    if len(values) == 1:
+        return f"{values[0]:g} A (1 point)"
+    steps = [values[index + 1] - values[index] for index in range(len(values) - 1)]
+    if max(steps) - min(steps) <= 1.0e-10:
+        return f"{values[0]:g}:{values[-1]:g}:{steps[0]:g} A ({len(values)} points)"
+    return f"{values[0]:g} to {values[-1]:g} A ({len(values)} irregular points)"
+
+
+def mode_specific_lines(active):
+    """Return a compact, human-readable description of per-mode overrides."""
+    q_overrides = dict(getattr(active, "Q_ENERGY_ANG_BY_MODE", {}))
+    model_overrides = dict(getattr(active, "FIT_MODEL_BY_MODE", {}))
+    degree_overrides = dict(getattr(active, "FIT_DEGREE_BY_MODE", {}))
+    range_overrides = dict(getattr(active, "FIT_Q_RANGE_ANG_BY_MODE", {}))
+    cubic_overrides = dict(getattr(active, "FIT_MAX_CUBIC_FACTOR_BY_MODE", {}))
+    all_overrides = {
+        name: dict(getattr(active, name, {})) for name in MODE_DICTIONARY_NAMES
+    }
+    modes = sorted({int(mode) for values in all_overrides.values() for mode in values})
+    lines = ["Mode-specific settings:"]
+    if not modes:
+        lines.append("  none (all modes use the defaults above)")
+        return lines
+    for mode in modes:
+        pieces = []
+        if mode in q_overrides:
+            pieces.append("Q=" + _regular_grid_description(q_overrides[mode]))
+        model = str(model_overrides.get(mode, getattr(active, "FIT_MODEL", "polynomial"))).lower()
+        if mode in model_overrides or mode in degree_overrides:
+            if model == "polynomial":
+                degree = int(degree_overrides.get(mode, getattr(active, "FIT_DEGREE", 4)))
+                pieces.append(f"fit=polynomial degree {degree}")
+            else:
+                pieces.append("fit=PCHIP")
+        if mode in range_overrides:
+            q_min, q_max = range_overrides[mode]
+            pieces.append(f"fit-Q=[{float(q_min):g},{float(q_max):g}] A")
+        if mode in cubic_overrides:
+            factor = cubic_overrides[mode]
+            description = "disabled" if factor is None else f"factor {float(factor):g}"
+            if model == "pchip":
+                description += " (ignored by PCHIP)"
+            pieces.append(f"cubic-limit={description}")
+        lines.append(f"  mode {mode}: " + "; ".join(pieces))
+    return lines
+
+
+def _mode_dictionaries(active):
+    return {name: dict(getattr(active, name, {})) for name in MODE_DICTIONARY_NAMES}
+
+
+def _save_mode_dictionaries(config_path, values):
+    backup = update_config_assignments(
+        config_path, {name: values[name] for name in MODE_DICTIONARY_NAMES}
+    )
+    reloaded = _mode_dictionaries(load_config(config_path))
+    if reloaded != values:
+        raise RuntimeError(
+            "The mode-specific settings were written but did not reload exactly; "
+            "do not run a5 until config.py is inspected."
+        )
+    print(f"Saved mode-specific settings in {Path(config_path).resolve()}")
+    print("Verified: the saved per-mode settings reload correctly.")
+    print(f"Backup: {backup}")
+
+
+def configure_mode_settings(config_path, input_function=input):
+    """Interactive editor for the scan and fit dictionaries already used by a1/a5."""
+    while True:
+        active = load_config(config_path)
+        print("\nMode-specific scan and fit settings")
+        print("  1. Set geometry Q limits for one or more modes")
+        print("  2. Use a polynomial degree for one or more modes")
+        print("  3. Use PCHIP for one or more modes")
+        print("  4. Set a fitting-only Q interval for one or more modes")
+        print("  5. Set or disable the cubic-term restriction by mode")
+        print("  6. Remove geometry-limit overrides from selected modes")
+        print("  7. Restore global fit defaults for selected modes")
+        print("     (removes overrides; it does not disable the global cubic limit)")
+        print("  8. Restore all global defaults for selected modes")
+        print("  9. Show mode-specific settings")
+        print("  0. Back")
+        answer = input_function("Select option: ").strip()
+        if answer in {"", "0"}:
+            return
+        if answer == "9":
+            print("\n" + "\n".join(mode_specific_lines(active)))
+            continue
+        if answer not in {"1", "2", "3", "4", "5", "6", "7", "8"}:
+            print("Invalid option.")
+            continue
+
+        modes = ask_explicit_modes(input_function=input_function)
+        values = _mode_dictionaries(active)
+        if answer == "1":
+            current = list(getattr(active, "Q_ENERGY_ANG", [-0.4, 0.4]))
+            current_step = current[1] - current[0] if len(current) > 1 else 0.1
+            while True:
+                q_min = ask_number("Q minimum (angstrom)", current[0], float,
+                                   input_function=input_function)
+                q_max = ask_number("Q maximum (angstrom)", current[-1], float,
+                                   input_function=input_function)
+                step = ask_number("Q step (angstrom)", current_step, float, 1.0e-12,
+                                  input_function)
+                try:
+                    q_min, q_max, step = validate_q_grid(q_min, q_max, step)
+                    break
+                except ValueError as exc:
+                    print(exc)
+            count = int(round((q_max - q_min) / step))
+            grid = [round(q_min + index * step, 12) for index in range(count + 1)]
+            for mode in modes:
+                values["Q_ENERGY_ANG_BY_MODE"][mode] = grid
+        elif answer == "2":
+            while True:
+                degree = ask_number("Polynomial degree (2-6)", getattr(active, "FIT_DEGREE", 4),
+                                    int, 2, input_function)
+                if degree <= 6:
+                    break
+                print("The current fitter supports degrees from 2 through 6.")
+            for mode in modes:
+                values["FIT_MODEL_BY_MODE"][mode] = "polynomial"
+                values["FIT_DEGREE_BY_MODE"][mode] = degree
+        elif answer == "3":
+            for mode in modes:
+                values["FIT_MODEL_BY_MODE"][mode] = "pchip"
+                values["FIT_DEGREE_BY_MODE"].pop(mode, None)
+        elif answer == "4":
+            while True:
+                q_min = ask_number("Fit Q minimum (angstrom)", -0.4, float,
+                                   input_function=input_function)
+                q_max = ask_number("Fit Q maximum (angstrom)", 0.4, float,
+                                   input_function=input_function)
+                if math.isfinite(q_min) and math.isfinite(q_max) and q_max > q_min:
+                    break
+                print("Fit Q maximum must exceed the minimum.")
+            for mode in modes:
+                values["FIT_Q_RANGE_ANG_BY_MODE"][mode] = (float(q_min), float(q_max))
+        elif answer == "5":
+            default_factor = getattr(active, "FIT_MAX_CUBIC_FACTOR", 10.0)
+            while True:
+                raw = ask_text(
+                    "Cubic-limit factor (positive number, or none to disable)",
+                    "none" if default_factor is None else default_factor,
+                    input_function,
+                ).strip().lower()
+                if raw in {"none", "off", "disable", "disabled"}:
+                    cubic_factor = None
+                    break
+                try:
+                    cubic_factor = float(raw)
+                except ValueError:
+                    cubic_factor = -1.0
+                if math.isfinite(cubic_factor) and cubic_factor > 0.0:
+                    break
+                print("Enter a positive finite factor, or none.")
+            for mode in modes:
+                values["FIT_MAX_CUBIC_FACTOR_BY_MODE"][mode] = cubic_factor
+        elif answer == "6":
+            for mode in modes:
+                values["Q_ENERGY_ANG_BY_MODE"].pop(mode, None)
+        elif answer == "7":
+            for name in MODE_DICTIONARY_NAMES:
+                if name != "Q_ENERGY_ANG_BY_MODE":
+                    for mode in modes:
+                        values[name].pop(mode, None)
+            default_cubic = getattr(active, "FIT_MAX_CUBIC_FACTOR", None)
+            print(
+                "Cubic limit after restoring defaults: "
+                + ("disabled" if default_cubic is None else f"global factor {float(default_cubic):g}")
+                + ". Use option 5 and enter none for an explicit per-mode disable."
+            )
+        elif answer == "8":
+            for name in MODE_DICTIONARY_NAMES:
+                for mode in modes:
+                    values[name].pop(mode, None)
+            default_cubic = getattr(active, "FIT_MAX_CUBIC_FACTOR", None)
+            print(
+                "All overrides removed. Effective cubic limit: "
+                + ("disabled" if default_cubic is None else f"global factor {float(default_cubic):g}")
+                + "."
+            )
+        _save_mode_dictionaries(config_path, values)
+
+
+def configuration_summary(active, config_path):
+    root = Path(config_path).resolve().parent
+    grid = list(active.Q_ENERGY_ANG)
+    lines = [
+        f"Config:             {Path(config_path).resolve()}",
+        f"Opt/freq software:  {opt_freq_software(active)}",
+        f"Opt/freq output:    {display_path(opt_freq_output(active), root)}",
+        f"Single-point code:  {single_point_software(active)}",
+        f"Automatic header:   {bool(getattr(active, 'AUTO_GENERATE_SINGLE_POINT_HEADER', True))}",
+        f"Gaussian header:    {display_path(active.GAUSSIAN_HEADER, root)}",
+        f"ORCA header:        {display_path(getattr(active, 'ORCA_HEADER', root / 'orca_head.inp'), root)}",
+        f"Coordinate model:   {active.A1_COORDINATE_SYSTEM}",
+        f"Scan root:          {display_path(active.SCAN_ROOT, root)}",
+        f"Modes:              {mode_text(list(active.SELECTED_MODES))}",
+        f"Default Q grid:     {_regular_grid_description(grid)}",
+        f"Energy source:      {active.ENERGY_SOURCE}",
+        f"Potential model:    {active.FIT_MODEL}"
+        + (f" degree {active.FIT_DEGREE}" if str(active.FIT_MODEL).lower() == "polynomial" else ""),
+        "Default cubic limit: "
+        + (
+            "disabled"
+            if getattr(active, "FIT_MAX_CUBIC_FACTOR", None) is None
+            else f"factor {float(active.FIT_MAX_CUBIC_FACTOR):g}"
+        ),
+        f"Temperature:        {active.TEMP:g} K",
+        f"Ensemble size:      {active.NSAMPLES} geometries per ensemble",
+        f"Random seed:        {active.A7_RANDOM_SEED}",
+        f"Ensemble output:    {display_path(active.ENSEMBLE_ROOT, root)}",
+        f"a1 workers:         {getattr(active, 'A1_WORKERS', 1)}",
+        f"a7 workers:         {getattr(active, 'A7_WORKERS', 1)}",
+        f"Parallel node:      {getattr(active, 'ANHDIS_PARALLEL_NODE', 'auto')}",
+        f"Single-point nodes: {list(active.ALLOWED_NODE_NUMS)}",
+        "Timing history:     "
+        + display_path(
+            getattr(active, "EXECUTION_TIMING_FILE", root / "anhdis_execution_times.tsv"),
+            root,
+        ),
+    ]
+    lines.extend(mode_specific_lines(active))
+    return lines
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _read_json_status(path, expected_stage):
+    path = Path(path)
+    if not path.is_file():
+        return None, f"[MISSING] {path.name}"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"[ERROR] {path.name}: {exc}"
+    accepted = {expected_stage} if isinstance(expected_stage, str) else set(expected_stage)
+    if data.get("stage") not in accepted:
+        return None, f"[ERROR] {path.name}: unexpected stage {data.get('stage')!r}"
+    return data, None
+
+
+def manifest_single_point_software(manifest):
+    software = str(manifest.get("single_point_software", "gaussian")).strip().lower()
+    if software not in {"gaussian", "orca"}:
+        raise ValueError(f"Invalid single-point software in a2 manifest: {software!r}")
+    return software
+
+
+def output_terminated_normally(text, software):
+    if software == "gaussian":
+        return "Normal termination of Gaussian" in text and "Error termination" not in text
+    return (
+        "ORCA TERMINATED NORMALLY" in text
+        and "ORCA finished by error termination" not in text
+    )
+
+
+def manifest_output_path(scan_root, record):
+    if record.get("output"):
+        return Path(scan_root) / record["output"]
+    return (Path(scan_root) / record["input"]).with_suffix(".log")
+
+
+def workflow_status(active, config_path):
+    """Inspect workflow manifests and files without modifying the calculation."""
+    project_root = Path(config_path).resolve().parent
+    scan_root = Path(active.SCAN_ROOT).resolve()
+    lines = ["AnhDis workflow integrity check", f"Scan root: {scan_root}"]
+    scan, problem = _read_json_status(
+        scan_root / "scan_manifest.json", "curvilinear_scan_geometries_with_mass_coordinate"
+    )
+    if problem:
+        lines.append(problem)
+        lines.append("Next action: run a1 (without --update for a new scan directory).")
+        return lines
+
+    scan_points = scan.get("energy_points", [])
+    missing_xyz = [point.get("xyz", "<undefined>") for point in scan_points
+                   if not (scan_root / point.get("xyz", "")).is_file()]
+    log_path = opt_freq_output(active)
+    log_mismatch = (
+        log_path.is_file()
+        and scan.get("source_log_sha256") != sha256_file(log_path)
+    )
+    configured_software = opt_freq_software(active)
+    software_mismatch = (
+        configured_software != "auto"
+        and scan.get("opt_freq_software") not in {None, configured_software}
+    )
+    configured_coordinate = str(getattr(active, "A1_COORDINATE_SYSTEM", "curvilinear"))
+    scan_coordinate = str(scan.get("coordinate_system", "curvilinear"))
+    if missing_xyz:
+        lines.append(f"[ERROR] a1 manifest: {len(missing_xyz)} geometry files are missing")
+    elif log_mismatch:
+        lines.append("[STALE] a1 manifest: configured optimization/frequency output has changed")
+    elif software_mismatch:
+        lines.append(
+            "[STALE] a1 manifest: configured optimization/frequency software differs "
+            "from the scan"
+        )
+    elif configured_coordinate != scan_coordinate:
+        lines.append(
+            f"[STALE] a1 manifest: scan is {scan_coordinate}, config requests {configured_coordinate}"
+        )
+    else:
+        lines.append(
+            f"[OK] a1: {len(scan_points)} geometries for modes "
+            f"{compact_modes(scan.get('selected_modes', []))}"
+        )
+
+    inputs, problem = _read_json_status(
+        scan_root / "input_manifest.json",
+        {"anhdis_single_point_inputs", "curvilinear_gaussian_single_point_inputs"},
+    )
+    inputs_stale = False
+    scan_hash_stale = False
+    header_stale = False
+    input_errors = []
+    if problem:
+        lines.append(problem)
+    else:
+        current_scan_hash = sha256_file(scan_root / "scan_manifest.json")
+        if inputs.get("scan_manifest_sha256") != current_scan_hash:
+            inputs_stale = True
+            scan_hash_stale = True
+            lines.append("[STALE] a2 manifest: it belongs to an earlier a1 scan")
+        manifest_software = manifest_single_point_software(inputs)
+        configured_point_software = resolved_single_point_software(active, scan)
+        if configured_point_software != manifest_software:
+            inputs_stale = True
+            header_stale = True
+            lines.append(
+                f"[STALE] a2 manifest uses {manifest_software.upper()}, but config requests "
+                f"{configured_point_software.upper()}"
+            )
+        header_path = single_point_header(active, configured_point_software)
+        if header_path.is_file() and inputs.get("header_sha256") != sha256_file(header_path):
+            inputs_stale = True
+            header_stale = True
+            lines.append(
+                f"[STALE] a2 manifest: the configured {configured_point_software.upper()} "
+                "header has changed"
+            )
+        records = inputs.get("points", [])
+        if inputs.get("input_count") != len(records):
+            input_errors.append("input_count does not match the point list")
+        for record in records:
+            xyz = scan_root / record.get("xyz", "")
+            com = scan_root / record.get("input", "")
+            if not xyz.is_file() or not com.is_file():
+                input_errors.append(f"missing {record.get('xyz') or record.get('input')}")
+                continue
+            if record.get("xyz_sha256") != sha256_file(xyz):
+                input_errors.append(f"changed geometry {record.get('xyz')}")
+            if record.get("input_sha256") != sha256_file(com):
+                input_errors.append(f"changed input {record.get('input')}")
+        if input_errors:
+            lines.append(f"[ERROR] a2 manifest: {len(input_errors)} integrity problems")
+            for detail in input_errors[:5]:
+                lines.append(f"        {detail}")
+            if len(input_errors) > 5:
+                lines.append(f"        ... and {len(input_errors) - 5} more")
+        elif not inputs_stale:
+            lines.append(
+                f"[OK] a2: {len(records)} {manifest_software.upper()} inputs match "
+                "the current a1 scan"
+            )
+
+    output_counts = {"normal": 0, "missing": 0, "failed": 0, "wrong_identity": 0}
+    if inputs is not None and not inputs_stale and not input_errors:
+        manifest_software = manifest_single_point_software(inputs)
+        for record in inputs.get("points", []):
+            output = manifest_output_path(scan_root, record)
+            if not output.is_file():
+                output_counts["missing"] += 1
+                continue
+            text = output.read_text(errors="replace")
+            if not output_terminated_normally(text, manifest_software):
+                output_counts["failed"] += 1
+            elif (
+                record.get("job_tag")
+                and re.sub(r"\s+", "", record["job_tag"])
+                not in re.sub(r"\s+", "", text)
+            ):
+                output_counts["wrong_identity"] += 1
+            else:
+                output_counts["normal"] += 1
+        total = sum(output_counts.values())
+        lines.append(
+            "[{}] {} outputs: {normal}/{total} valid; {missing} missing; "
+            "{failed} failed; {wrong_identity} wrong identity".format(
+                "OK" if output_counts["normal"] == total else "INCOMPLETE",
+                manifest_software.upper(), total=total, **output_counts,
+            )
+        )
+
+    status_path = scan_root / getattr(active, "CALCULATION_STATUS_FILE", "calculation_status.tsv")
+    if status_path.is_file():
+        try:
+            with status_path.open(newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            counts = {}
+            for row in rows:
+                key = row.get("status", "UNKNOWN")
+                counts[key] = counts.get(key, 0) + 1
+            rendered = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+            lines.append(f"[{'OK' if set(counts) <= {'OK'} else 'CHECK'}] a4 status: {rendered}")
+        except (OSError, csv.Error) as exc:
+            lines.append(f"[ERROR] a4 status table: {exc}")
+
+    fit, fit_problem = _read_json_status(
+        scan_root / "fit_metadata.json", "curvilinear_potential_fit_in_constant_mass_coordinate"
+    )
+    if fit_problem:
+        lines.append(fit_problem)
+    else:
+        fit_modes = [int(mode) for mode in fit.get("selected_modes", [])]
+        missing_modes = sorted(set(scan.get("selected_modes", [])) - set(fit_modes))
+        label = "OK" if not missing_modes else "INCOMPLETE"
+        detail = "" if not missing_modes else f"; missing modes {compact_modes(missing_modes)}"
+        lines.append(f"[{label}] a5: fitted modes {compact_modes(fit_modes)}{detail}")
+
+    quantum, quantum_problem = _read_json_status(
+        scan_root / "a6_metadata.json", "curvilinear_quantum_thermal_distribution"
+    )
+    if quantum_problem:
+        lines.append(quantum_problem)
+    else:
+        quantum_modes = [int(mode) for mode in quantum.get("selected_modes", [])]
+        temperature = float(quantum.get("temperature_K", float("nan")))
+        current_temperature = float(getattr(active, "TEMP", temperature))
+        temperature_matches = math.isclose(temperature, current_temperature, rel_tol=0.0, abs_tol=1.0e-12)
+        label = "OK" if temperature_matches else "STALE"
+        lines.append(
+            f"[{label}] a6: modes {compact_modes(quantum_modes)}, T={temperature:g} K"
+            + ("" if temperature_matches else f" (config requests {current_temperature:g} K)")
+        )
+
+    ensemble_root = Path(getattr(active, "ENSEMBLE_ROOT", project_root / "ensemble_output")).resolve()
+    ensemble_name = getattr(active, "A7_MANIFEST_FILE", "a7_manifest.json")
+    ensemble, ensemble_problem = _read_json_status(
+        ensemble_root / ensemble_name, "curvilinear_internal_coordinate_ensemble"
+    )
+    if ensemble_problem:
+        lines.append(f"[MISSING] a7 ensemble manifest in {ensemble_root}")
+    else:
+        lines.append(
+            f"[OK] a7: {ensemble.get('n_samples')} samples, seed "
+            f"{ensemble.get('random_seed')}, modes {compact_modes(ensemble.get('selected_modes', []))}"
+        )
+
+    if inputs is None:
+        next_action = "run a2"
+    elif header_stale:
+        next_action = (
+            "restore the original single-point program/header or use a new SCAN_ROOT; use a2 --force "
+            "only if no result files exist"
+        )
+    elif scan_hash_stale:
+        next_action = "run a2-update (it preserves valid existing single-point results)"
+    elif input_errors:
+        next_action = "inspect the listed a2 integrity errors before submitting anything"
+    elif output_counts["missing"]:
+        next_action = "run a3-dry, then submit"
+    elif output_counts["failed"] or output_counts["wrong_identity"]:
+        next_action = "run a4, inspect failures, then resubmit deliberately"
+    elif fit is None:
+        next_action = "run a4-strict, then a5"
+    elif quantum is None:
+        next_action = "run a6"
+    elif ensemble is None:
+        next_action = "run a7 (or a7-pbs for parallel reconstruction)"
+    else:
+        next_action = "workflow products are present; inspect any CHECK/STALE line above"
+    lines.append(f"Next action: {next_action}.")
+    return lines
+
+
+def _same_numeric_grid(first, second):
+    first = [round(float(value), 12) for value in first]
+    second = [round(float(value), 12) for value in second]
+    return first == second
+
+
+def _configured_grid_for_mode(active, mode):
+    return list(getattr(active, "Q_ENERGY_ANG_BY_MODE", {}).get(mode, active.Q_ENERGY_ANG))
+
+
+def modes_needing_a1_update(active):
+    """Return only modes whose configured grid extends the current a1 manifest."""
+    root = Path(active.SCAN_ROOT).resolve()
+    scan, problem = _read_json_status(
+        root / "scan_manifest.json", "curvilinear_scan_geometries_with_mass_coordinate"
+    )
+    if problem:
+        raise FileNotFoundError(f"a1 --update requires a valid scan manifest in {root}.")
+    selected = list(getattr(active, "SELECTED_MODES", [])) or list(range(1, int(scan["n_modes"]) + 1))
+    if any(mode < 1 or mode > int(scan["n_modes"]) for mode in selected):
+        raise ValueError(f"Configured modes must lie between 1 and {scan['n_modes']}.")
+    previous_by_mode = {
+        int(mode): list(grid) for mode, grid in scan.get("Q_energy_angstrom_by_mode", {}).items()
+    }
+    changed = []
+    for mode in selected:
+        requested = _configured_grid_for_mode(active, mode)
+        previous = previous_by_mode.get(mode)
+        if previous is None:
+            changed.append(mode)
+            continue
+        if _same_numeric_grid(previous, requested):
+            continue
+        previous_set = {round(float(value), 12) for value in previous}
+        requested_set = {round(float(value), 12) for value in requested}
+        if not previous_set <= requested_set:
+            removed = sorted(previous_set - requested_set)
+            raise ValueError(
+                f"Mode {mode}: the configured Q grid removes existing values {removed}. "
+                "Safe update only extends a grid; use a new SCAN_ROOT to shrink or replace it."
+            )
+        changed.append(mode)
+    return changed
+
+
+def modes_needing_a2_update(active):
+    """Return modes whose a1 point set is not yet represented by input_manifest.json."""
+    root = Path(active.SCAN_ROOT).resolve()
+    scan, problem = _read_json_status(
+        root / "scan_manifest.json", "curvilinear_scan_geometries_with_mass_coordinate"
+    )
+    if problem:
+        raise FileNotFoundError(f"a2 --update requires a valid scan manifest in {root}.")
+    inputs, problem = _read_json_status(
+        root / "input_manifest.json",
+        {"anhdis_single_point_inputs", "curvilinear_gaussian_single_point_inputs"},
+    )
+    if problem:
+        raise FileNotFoundError("No valid a2 manifest exists; run normal a2 first.")
+    scan_q = {}
+    input_q = {}
+    for point in scan.get("energy_points", []):
+        scan_q.setdefault(int(point["mode"]), set()).add(round(float(point["Q_angstrom"]), 12))
+    for point in inputs.get("points", []):
+        input_q.setdefault(int(point["mode"]), set()).add(round(float(point["Q_angstrom"]), 12))
+    return sorted(mode for mode, values in scan_q.items() if input_q.get(mode, set()) != values)
+
+
+def write_parallel_pbs(
+    stage, active, project_root, modes=None, node=None, workers=None,
+    output=None, ensemble=None, coordinates=None,
+):
+    """Create a PBS file with the active interpreter, worker count, and node choice."""
+    definitions = {
+        "a1-pbs": ("a1", "a1_geometries.py", int(getattr(active, "A1_WORKERS", 1)), []),
+        "a1-update-pbs": (
+            "a1_update", "a1_geometries.py", int(getattr(active, "A1_WORKERS", 1)), ["--update"]
+        ),
+        "a7-pbs": ("a7", "a7_coord_therm.py", int(getattr(active, "A7_WORKERS", 1)), []),
+    }
+    if stage not in definitions:
+        raise ValueError(f"No parallel PBS definition for {stage}.")
+    label, script_name, configured_workers, extra = definitions[stage]
+    workers = configured_workers if workers is None else int(workers)
+    if workers < 1:
+        raise ValueError(f"{label} worker count must be positive.")
+    node = normalized_parallel_node(
+        getattr(active, "ANHDIS_PARALLEL_NODE", "auto") if node is None else node
+    )
+    node_request = "1" if node == "auto" else node
+    node_cpus = getattr(active, "NODE_CPUS", {}).get(node)
+    if node_cpus is not None and workers > int(node_cpus):
+        raise ValueError(f"{node} provides {node_cpus} CPUs, fewer than the requested {workers}.")
+    command = ["python3", "-u", f"./{script_name}", "--workers", str(workers), *extra]
+    if stage == "a7-pbs":
+        command.extend(["--ensemble", ensemble or "both", "--coordinates", coordinates or "scan"])
+    if modes:
+        command.extend(["--modes", *(str(mode) for mode in modes)])
+    if output is not None:
+        command.extend(["--output", str(Path(output).resolve())])
+    login_command = "python3 --version && " + shlex.join(command)
+    filename = project_root / f"run_{label}_parallel.pbs"
+    content = "\n".join((
+        "#!/bin/bash",
+        f"#PBS -N anhdis_{label}",
+        f"#PBS -l nodes={node_request}:ppn={workers}",
+        "#PBS -l mem=8gb",
+        "#PBS -l walltime=12:00:00",
+        "#PBS -S /bin/bash",
+        "#PBS -j oe",
+        f"#PBS -o {label}_parallel.out",
+        "#PBS -V",
+        "",
+        'cd "$PBS_O_WORKDIR" || exit 1',
+        "export OMP_NUM_THREADS=1",
+        "export OPENBLAS_NUM_THREADS=1",
+        "export MKL_NUM_THREADS=1",
+        "export NUMEXPR_NUM_THREADS=1",
+        "",
+        "/bin/bash -lc " + shlex.quote(login_command),
+        "",
+    ))
+    filename.write_text(content)
+    filename.chmod(0o750)
+    return filename
+
+
+def stage_commands(active, project_root):
+    python = sys.executable
+    workers = str(int(getattr(active, "A1_WORKERS", 1)))
+    a7_workers = str(int(getattr(active, "A7_WORKERS", 1)))
+    return {
+        "a1": [python, "-u", str(project_root / "a1_geometries.py"), "--workers", workers],
+        "a1-update": [python, "-u", str(project_root / "a1_geometries.py"), "--workers", workers, "--update"],
+        "a2": [python, str(project_root / "a2_gaussian_input_generator.py")],
+        "a2-update": [python, str(project_root / "a2_gaussian_input_generator.py"), "--update"],
+        "a3-dry": [python, str(project_root / "a3_lanzador.py")],
+        "submit": [python, str(project_root / "a3_lanzador.py"), "--submit"],
+        "resubmit": [python, str(project_root / "a3_lanzador.py"), "--submit", "--resubmit"],
+        "a4": [python, str(project_root / "a4_check_calculation.py")],
+        "a4-strict": [python, str(project_root / "a4_check_calculation.py"), "--strict"],
+        "a5": [python, str(project_root / "a5_fitting.py")],
+        "a6": [python, str(project_root / "a6_probdis_therm.py")],
+        "a7": [python, "-u", str(project_root / "a7_coord_therm.py"), "--workers", a7_workers],
+    }
+
+
+def run_stage(
+    stage, active, config_path, assume_yes=False, node_override=None,
+    workers_override=None, output_override=None, ensemble_override=None, coordinates_override=None,
+):
+    project_root = Path(config_path).resolve().parent
+    commands = stage_commands(active, project_root)
+    pbs_stages = {"a1-pbs", "a1-update-pbs", "a7-pbs"}
+    if (ensemble_override is not None or coordinates_override is not None) and stage not in {"a7", "a7-pbs"}:
+        raise ValueError("--ensemble and --coordinates are used only with a7 or a7-pbs.")
+    if workers_override is not None and int(workers_override) < 1:
+        raise ValueError("--workers must be a positive integer.")
+    if output_override is not None and stage not in {"a7", "a7-pbs"}:
+        raise ValueError("--output is used only with a7 or a7-pbs.")
+    if output_override is not None:
+        output_override = resolved_project_path(output_override, project_root)
+        if unavailable_a7_output(output_override):
+            raise FileExistsError(
+                f"Use a new or empty a7 output directory: {output_override}"
+            )
+    if stage in {"a1", "a1-pbs"}:
+        scan_manifest = Path(active.SCAN_ROOT).resolve() / "scan_manifest.json"
+        if scan_manifest.is_file():
+            changed_modes = modes_needing_a1_update(active)
+            if not changed_modes:
+                print(
+                    "The existing a1 manifest already matches the configured Q grids; "
+                    "there is nothing to regenerate."
+                )
+                return 0
+            stage = "a1-update-pbs" if stage == "a1-pbs" else "a1-update"
+            print(
+                "Existing a1 scan detected. Switching automatically to a safe "
+                f"--update for modes: {compact_modes(changed_modes)}"
+            )
+    if stage == "a2":
+        scan_path = Path(active.SCAN_ROOT).resolve() / "scan_manifest.json"
+        input_path = scan_path.with_name("input_manifest.json")
+        if scan_path.is_file() and input_path.is_file():
+            try:
+                current_scan = json.loads(scan_path.read_text())
+                previous_inputs = json.loads(input_path.read_text())
+            except json.JSONDecodeError:
+                current_scan = {}
+                previous_inputs = {}
+            point_software = resolved_single_point_software(active, current_scan)
+            header_path = single_point_header(active, point_software).resolve()
+            scan_changed = previous_inputs.get("scan_manifest_sha256") != sha256_file(scan_path)
+            header_unchanged = (
+                header_path.is_file()
+                and previous_inputs.get("header_sha256") == sha256_file(header_path)
+                and manifest_single_point_software(previous_inputs) == point_software
+            )
+            if scan_changed and header_unchanged:
+                print("The a1 manifest was extended; switching normal a2 to safe a2-update.")
+                stage = "a2-update"
+    if stage not in commands and stage not in pbs_stages:
+        raise ValueError(f"Unknown workflow stage: {stage}.")
+    if node_override is not None and stage not in pbs_stages:
+        raise ValueError("--node is used only with a1-pbs, a1-update-pbs, or a7-pbs.")
+    worker_setting = (
+        int(workers_override) if workers_override is not None
+        else int(getattr(active, "A1_WORKERS", 1)) if stage in {"a1", "a1-update"}
+        else int(getattr(active, "A7_WORKERS", 1)) if stage == "a7"
+        else 1
+    )
+    if stage in {"a1", "a1-update", "a7"} and worker_setting > 1:
+        host = socket.gethostname().lower()
+        if "master" in host or "login" in host:
+            print(f"Refusing to start parallel {stage} on a login/master host.")
+            print(f"Choose {stage}-pbs, or run it inside an allocated compute node.")
+            return 2
+    update_modes = None
+    if stage in {"a1-update", "a1-update-pbs"}:
+        update_modes = modes_needing_a1_update(active)
+        if not update_modes:
+            print("No configured Q grid extends the existing a1 scan; nothing to update.")
+            return 0
+        print(f"a1 safe update will process only modes: {compact_modes(update_modes)}")
+    elif stage == "a2-update":
+        update_modes = modes_needing_a2_update(active)
+        if not update_modes:
+            print("The a2 manifest already covers every current a1 point; nothing to update.")
+            return 0
+        print(f"a2 safe update will process only modes: {compact_modes(update_modes)}")
+
+    if stage in pbs_stages | {"submit", "resubmit"} and not assume_yes:
+        description = {
+            "a1-pbs": "submit the parallel a1 PBS job",
+            "a1-update-pbs": "submit the parallel safe-update a1 PBS job",
+            "a7-pbs": "submit the parallel a7 PBS job",
+            "submit": "submit pending single-point calculations",
+            "resubmit": "resubmit calculations even when log files exist",
+        }[stage]
+        if not ask_yes_no(f"Really {description}", False):
+            print("Cancelled.")
+            return 0
+    if stage in pbs_stages:
+        pbs_path = write_parallel_pbs(
+            stage, active, project_root, update_modes,
+            node=node_override, workers=workers_override,
+            output=output_override,
+            ensemble=ensemble_override, coordinates=coordinates_override,
+        )
+        command = [str(getattr(active, "SUBMIT_COMMAND", "qsub")), str(pbs_path)]
+        required_file = pbs_path
+        print(f"PBS script generated from the active configuration: {pbs_path.name}")
+    else:
+        command = list(commands[stage])
+        if stage == "a7":
+            command.extend(["--ensemble", ensemble_override or "both",
+                            "--coordinates", coordinates_override or "scan"])
+        if workers_override is not None and stage in {"a1", "a1-update", "a7"}:
+            worker_index = command.index("--workers") + 1
+            command[worker_index] = str(int(workers_override))
+        if update_modes:
+            command.extend(["--modes", *(str(mode) for mode in update_modes)])
+        if output_override is not None:
+            command.extend(["--output", str(output_override)])
+        script_indices = {"a1": 2, "a1-update": 2, "a7": 2}
+        required_file = Path(command[script_indices.get(stage, 1)])
+    if not required_file.is_file():
+        raise FileNotFoundError(f"Required file not found: {required_file}")
+    print("Running:", " ".join(command))
+    result = subprocess.run(command, cwd=project_root, check=False)
+    print(f"Stage {stage} finished with exit code {result.returncode}.")
+    if result.returncode == 0 and stage in {"a1-update", "a1-update-pbs"}:
+        print("After a1 finishes successfully, run: ./anhdis --run a2-update")
+    elif result.returncode == 0 and stage == "a2-update":
+        print("Next: ./anhdis --run a3-dry, then submit only the new pending points.")
+    return result.returncode
+
+
+STAGE_MENU = (
+    ("a1", "Generate a1 scan geometries (directly or on a compute node)"),
+    ("a1-update", "Safely extend an a1 scan (directly or on a compute node)"),
+    ("a2", "Generate Gaussian/ORCA inputs"),
+    ("a2-update", "Update inputs after extending an a1 scan"),
+    ("a3-dry", "Preview single-point submissions"),
+    ("submit", "Submit pending single-point calculations"),
+    ("resubmit", "Resubmit single-point calculations"),
+    ("a4", "Check Gaussian/ORCA calculations"),
+    ("a4-strict", "Strictly validate completed calculations"),
+    ("a5", "Build/fit potentials"),
+    ("a6", "Calculate position and momentum distributions"),
+    ("a7", "Generate nuclear ensembles (directly or on a compute node)"),
+)
+
+CLI_STAGE_NAMES = tuple(item[0] for item in STAGE_MENU) + (
+    "a1-pbs", "a1-update-pbs", "a7-pbs",
+)
+
+
+def choose_stage_execution(stage, active, input_function=input):
+    """Ask how a1/a7 should run and return stage, node, and worker overrides."""
+    if stage not in {"a1", "a1-update", "a7"}:
+        return stage, None, None
+    default_workers = int(getattr(
+        active, "A7_WORKERS" if stage == "a7" else "A1_WORKERS", 1,
+    ))
+    method = ask_choice(
+        "Execution", ("compute-node", "direct"), "compute-node", input_function,
+    )
+    workers = ask_number(
+        "Worker processes", default_workers, int, 1, input_function,
+    )
+    if method == "direct":
+        return stage, None, workers
+    while True:
+        try:
+            node = normalized_parallel_node(ask_text(
+                "Compute node (auto lets PBS choose)",
+                getattr(active, "ANHDIS_PARALLEL_NODE", "auto"), input_function,
+            ))
+            break
+        except ValueError as exc:
+            print(exc)
+    pbs_stage = {"a1": "a1-pbs", "a1-update": "a1-update-pbs", "a7": "a7-pbs"}[stage]
+    print(
+        f"Selected: {pbs_stage}, node={node}, workers={workers}. "
+        "These choices apply only to this submission."
+    )
+    return pbs_stage, node, workers
+
+
+def stage_menu(active, config_path, input_function=input):
+    print("\nWorkflow stages")
+    for index, (_, description) in enumerate(STAGE_MENU, 1):
+        print(f"  {index:2d}. {description}")
+    print("   0. Back")
+    answer = input_function("Select stage: ").strip()
+    if answer in {"", "0"}:
+        return
+    try:
+        stage = STAGE_MENU[int(answer) - 1][0]
+    except (ValueError, IndexError):
+        print("Invalid stage.")
+        return
+    ensemble, coordinates = None, None
+    if stage == "a7":
+        print("Curvilinear harmonic output also includes a Cartesian harmonic reference. "
+              "Anharmonic coordinates must match the computed PES.")
+        ensemble = ask_choice("Distribution", ("thermal_harmonic", "thermal_anharmonic", "both"),
+                              "both", input_function)
+        coordinates = ask_choice("Geometry coordinates", ("cartesian", "curvilinear", "scan"),
+                                "scan", input_function)
+    stage, node, workers = choose_stage_execution(stage, active, input_function)
+    output = (
+        choose_a7_output_if_needed(active, config_path, input_function)
+        if stage in {"a7", "a7-pbs"} else None
+    )
+    run_stage(
+        stage, active, config_path,
+        node_override=node, workers_override=workers, output_override=output,
+        ensemble_override=ensemble, coordinates_override=coordinates,
+    )
+
+
+def show_commands(active):
+    print("\nNormal order (values are read from config.py):")
+    print(f"  ./a1_geometries.py --workers {getattr(active, 'A1_WORKERS', 1)}")
+    print("  ./a2_gaussian_input_generator.py")
+    print("  [after a1 --update: ./a2_gaussian_input_generator.py --update]")
+    print("  ./a3_lanzador.py --submit")
+    print("  [wait for Gaussian/ORCA jobs]")
+    print("  ./a4_check_calculation.py --strict")
+    print("  ./a5_fitting.py")
+    print("  ./a6_probdis_therm.py")
+    print(f"  ./a7_coord_therm.py --workers {getattr(active, 'A7_WORKERS', 1)}")
+    print("\nAfter extending Q limits:")
+    print(f"  ./a1_geometries.py --workers {getattr(active, 'A1_WORKERS', 1)} --update")
+    print("  ./a2_gaussian_input_generator.py --update")
+    print("  ./a3_lanzador.py                 # preview only")
+    print("  ./a3_lanzador.py --submit        # submits only missing logs")
+
+
+def show_timing_summary(active, config_path, recent=12):
+    """Print per-stage totals and the most recent recorded executions."""
+    project_root = Path(config_path).resolve().parent
+    path = Path(getattr(
+        active, "EXECUTION_TIMING_FILE", project_root / "anhdis_execution_times.tsv",
+    )).resolve()
+    if not path.is_file():
+        print(f"No execution timings have been recorded yet: {path}")
+        return
+    with path.open(newline="") as stream:
+        rows = list(csv.DictReader(stream, delimiter="\t"))
+    valid = []
+    for row in rows:
+        try:
+            row["_elapsed"] = float(row["elapsed_seconds"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        valid.append(row)
+    if not valid:
+        print(f"The timing file has no valid records: {path}")
+        return
+    grouped = {}
+    for row in valid:
+        grouped.setdefault(row["stage"], []).append(row)
+    print(f"\nExecution-time summary: {path}")
+    print("stage  runs  ok  failed       total         mean          max")
+    for stage in sorted(grouped):
+        records = grouped[stage]
+        durations = [row["_elapsed"] for row in records]
+        okay = sum(row.get("status") == "OK" for row in records)
+        failed = len(records) - okay
+        print(
+            f"{stage:<6} {len(records):>4} {okay:>3} {failed:>7}  "
+            f"{format_elapsed_time(sum(durations)):>11}  "
+            f"{format_elapsed_time(sum(durations) / len(durations)):>11}  "
+            f"{format_elapsed_time(max(durations)):>11}"
+        )
+    print(f"\nMost recent {min(recent, len(valid))} executions:")
+    for row in valid[-recent:]:
+        print(
+            f"  {row.get('finished_at', '')}  {row.get('stage', ''):<3}  "
+            f"{row.get('status', ''):<6}  {row.get('elapsed_hms', ''):>12}  "
+            f"{row.get('hostname', '')}"
+        )
+
+
+def interactive_menu(config_path):
+    while True:
+        print("\nMain menu")
+        print("  1. Configure calculation")
+        print("  2. Configure limits and fits by mode")
+        print("  3. Show active configuration")
+        print("  4. Check manifests and workflow files")
+        print("  5. Run or submit a workflow stage")
+        print("  6. Show normal command order")
+        print("  7. Show execution-time summary")
+        print("  0. Exit")
+        answer = input("Select option: ").strip()
+        if answer == "1":
+            configure(config_path)
+        elif answer == "2":
+            configure_mode_settings(config_path)
+        elif answer == "3":
+            print("\n" + "\n".join(configuration_summary(load_config(config_path), config_path)))
+        elif answer == "4":
+            print("\n" + "\n".join(workflow_status(load_config(config_path), config_path)))
+        elif answer == "5":
+            stage_menu(load_config(config_path), config_path)
+        elif answer == "6":
+            show_commands(load_config(config_path))
+        elif answer == "7":
+            show_timing_summary(load_config(config_path), config_path)
+        elif answer in {"0", ""}:
+            return 0
+        else:
+            print("Invalid option.")
+
+
+def main():
+    default_config = Path(__file__).resolve().parent / "config.py"
+    parser = argparse.ArgumentParser(description="Interactive setup and launcher for AnhDis.")
+    parser.add_argument("--config", type=Path, default=default_config)
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--configure", action="store_true", help="Run the setup wizard")
+    action.add_argument("--configure-modes", action="store_true", help="Configure scan limits and fits by mode")
+    action.add_argument("--show", action="store_true", help="Show the active configuration")
+    action.add_argument("--check", action="store_true", help="Check manifests and workflow files")
+    action.add_argument("--timings", action="store_true", help="Show execution-time history")
+    action.add_argument("--run", choices=CLI_STAGE_NAMES, help="Run one stage")
+    parser.add_argument("--yes", action="store_true", help="Confirm a requested submission")
+    parser.add_argument(
+        "--node", help="PBS node for this run only, e.g. qcexnod56; does not change config.py",
+    )
+    parser.add_argument(
+        "--workers", type=int,
+        help="Worker processes for this a1/a7 run only; does not change config.py",
+    )
+    parser.add_argument(
+        "--output", type=Path,
+        help="New/empty output directory for this a7 run only; does not change config.py",
+    )
+    parser.add_argument("--ensemble", choices=("thermal_harmonic", "thermal_anharmonic", "both"),
+                        help="a7 distributions for this run only")
+    parser.add_argument("--coordinates", choices=("cartesian", "curvilinear", "scan"),
+                        help="a7 geometry reconstruction for this run only")
+    args = parser.parse_args()
+    config_path = args.config.resolve()
+    if not config_path.is_file():
+        raise FileNotFoundError(f"config.py not found: {config_path}")
+    print_banner()
+    migration_backup = migrate_legacy_config_file(config_path)
+    if migration_backup is not None:
+        print("Migrated legacy end-of-file overrides into the original config.py assignments.")
+        print(f"Pre-migration backup: {migration_backup}")
+    if args.configure:
+        configure(config_path)
+        return 0
+    if args.configure_modes:
+        configure_mode_settings(config_path)
+        return 0
+    active = load_config(config_path)
+    if args.show:
+        print("\n".join(configuration_summary(active, config_path)))
+        return 0
+    if args.check:
+        print("\n".join(workflow_status(active, config_path)))
+        return 0
+    if args.timings:
+        show_timing_summary(active, config_path)
+        return 0
+    if args.run:
+        output_override = args.output
+        if args.run in {"a7", "a7-pbs"} and output_override is None:
+            output_override = choose_a7_output_if_needed(active, config_path)
+        return run_stage(
+            args.run, active, config_path, args.yes,
+            node_override=args.node, workers_override=args.workers,
+            output_override=output_override,
+            ensemble_override=args.ensemble, coordinates_override=args.coordinates,
+        )
+    return interactive_menu(config_path)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
