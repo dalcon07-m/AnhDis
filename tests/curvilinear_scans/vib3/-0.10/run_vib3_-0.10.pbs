@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -u macias
+#PBS -N vib3m010
+#PBS -l nodes=qcexnod56:ppn=2
+#PBS -S /bin/bash
+# Gaussian's environment profile reads variables that may legitimately be
+# undefined before initialization (for example LD_LIBRARY64_PATH).  Therefore
+# keep errexit and pipefail, but do not enable Bash nounset here.
+
+FILE=vib3_-0.10
+WDIR=/home/macias/hoso/multispec/multispec/anhdis_curv/curvilinear_scans/vib3/-0.10
+SCRDIR=/scr/macias/${PBS_JOBID}_vib3_-0.10
+mkdir -p "$SCRDIR"
+source /soft/g16.a03/g16/bsd/g16.profile
+cd "$SCRDIR"
+g16 < "$WDIR/$FILE.com" > "$SCRDIR/$FILE.log"
+STATUS=$?
+cp "$SCRDIR/$FILE.log" "$WDIR/$FILE.log"
+for extension in chk o e; do
+    if [ -f "$SCRDIR/$FILE.$extension" ]; then
+        cp "$SCRDIR/$FILE.$extension" "$WDIR/$FILE.$extension"
+    fi
+done
+exit "$STATUS"

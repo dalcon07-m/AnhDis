@@ -1,0 +1,7 @@
+started_at	finished_at	stage	status	elapsed_seconds	elapsed_hms	hostname	pid	working_directory	command	error
+2026-09-20T00:51:53+02:00	2026-09-20T00:52:16+02:00	a7	OK	22.744282	00:00:22.744	qcexmaster	10818	/home/macias/hoso/multispec/multispec/anhdis_curv	./a7_coord_therm.py	
+2026-09-24T17:00:22+02:00	2026-09-24T17:00:44+02:00	a7	OK	22.064833	00:00:22.065	qcexmaster	11277	/home/macias/hoso/multispec/multispec/anhdis_curv	./a7_coord_therm.py	
+2026-09-24T17:03:12+02:00	2026-09-24T17:03:40+02:00	a7	OK	28.603827	00:00:28.604	qcexmaster	11654	/home/macias/hoso/multispec/multispec/anhdis_curv	./a7_coord_therm.py	
+2026-09-29T12:39:27+02:00	2026-09-29T12:39:29+02:00	a1	OK	1.560510	00:00:01.561	qcexmaster	10775	/home/macias/hoso/multispec/multispec/anhdis_curv	./a1_geometries.py --workers 12	
+2026-09-29T12:41:01+02:00	2026-09-29T12:41:01+02:00	a7	FAILED	0.001916	00:00:00.002	qcexmaster	11996	/home/macias/hoso/multispec/multispec/anhdis_curv	./a7_coord_therm.py --workers 12	FileNotFoundError: Missing a1 manifest: /home/macias/hoso/multispec/multispec/anhdis_curv/curvilinear_scans_/scan_manifest.json
+2026-09-29T12:42:21+02:00	2026-09-29T12:42:50+02:00	a7	OK	29.792653	00:00:29.793	qcexmaster	12591	/home/macias/hoso/multispec/multispec/anhdis_curv	./a7_coord_therm.py --workers 12	

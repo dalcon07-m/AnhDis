@@ -1,0 +1,66 @@
+[
+  {
+    "label": "R1:R(1,2)",
+    "kind": "R",
+    "atoms_1based": [
+      1,
+      2
+    ],
+    "equilibrium": 1.6453193671673594,
+    "unit": "angstrom"
+  },
+  {
+    "label": "R2:R(1,3)",
+    "kind": "R",
+    "atoms_1based": [
+      1,
+      3
+    ],
+    "equilibrium": 1.472675440274265,
+    "unit": "angstrom"
+  },
+  {
+    "label": "R3:R(2,4)",
+    "kind": "R",
+    "atoms_1based": [
+      2,
+      4
+    ],
+    "equilibrium": 0.9702729748550147,
+    "unit": "angstrom"
+  },
+  {
+    "label": "A1:A(2,1,3)",
+    "kind": "A",
+    "atoms_1based": [
+      2,
+      1,
+      3
+    ],
+    "equilibrium": 1.9042298485567066,
+    "unit": "radian"
+  },
+  {
+    "label": "A2:A(1,2,4)",
+    "kind": "A",
+    "atoms_1based": [
+      1,
+      2,
+      4
+    ],
+    "equilibrium": 1.906451199963051,
+    "unit": "radian"
+  },
+  {
+    "label": "D1:D(3,1,2,4)",
+    "kind": "D",
+    "atoms_1based": [
+      3,
+      1,
+      2,
+      4
+    ],
+    "equilibrium": 0.3430698202328025,
+    "unit": "radian"
+  }
+]

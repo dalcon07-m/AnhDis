@@ -1,0 +1,122 @@
+{
+  "stage": "curvilinear_internal_coordinate_ensemble",
+  "scan_root": "/home/macias/hoso/multispec/multispec/anhdis_curv/curvilinear_scans_T",
+  "selected_modes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "coordinate_system": "curvilinear",
+  "density_coordinate_system": "curvilinear",
+  "reconstruction_selection": "scan",
+  "reference_is_linear": false,
+  "full_dimensional_ensemble": true,
+  "n_samples": 200,
+  "random_seed": 1,
+  "temperature_K": 298.15,
+  "reconstruction_workers": 12,
+  "equilibrium_geometry_as_g1": true,
+  "randomly_sampled_geometries": 199,
+  "ensembles": [
+    "thermal_anharmonic",
+    "thermal_harmonic",
+    "thermal_harmonic_cartesian"
+  ],
+  "ensemble_coordinate_systems": {
+    "thermal_anharmonic": "curvilinear",
+    "thermal_harmonic": "curvilinear",
+    "thermal_harmonic_cartesian": "cartesian"
+  },
+  "ensemble_workers": {
+    "thermal_anharmonic": 12,
+    "thermal_harmonic": 12,
+    "thermal_harmonic_cartesian": 1
+  },
+  "probability_model": "positive separable product over modes and, within every mode, F_i(s_i,p_i;T)=rho_i(s_i,T)*rho_i(p_i,T); no anharmonic Wigner quasiprobability",
+  "sampling": "anharmonic: independent inverse numerical CDFs with s -> inverse s(Q); harmonic: independent exact Gaussian inverse CDFs on the full real line with Q=s; momenta sampled independently in both ensembles",
+  "independent_position_momentum_sampling": true,
+  "coordinate_random_stream_preserved_from_position_only_a7": true,
+  "equilibrium_geometry_g1_has_independently_sampled_momentum": true,
+  "geometry_reconstruction": "xi_target=sum_i Q_i*l_i in the fixed equilibrium independent-internal basis; one simultaneous iterative internal-to-Cartesian back-transformation",
+  "energetic_mode_coupling_included": false,
+  "velocity_reconstruction": "ds_i/dt=p_s_i/mu_i(0); anharmonic dQ_i/ds_i=sqrt(mu_i(0)/mu_i(Q_i)); harmonic dQ_i/ds_i=1; local dR/dQ_i from the Wilson-B mass-metric pseudoinverse; summed Cartesian velocity",
+  "coordinate_shift_applied": false,
+  "tail_handling": "anharmonic only: conditional renormalization on the a6 grid intersected with the a1 path and a5 fit-data interval; harmonic position and momentum use unbounded analytic Gaussian marginals and have no scan/grid tail truncation",
+  "allow_large_truncation": false,
+  "single_mode_path_endpoint_validation": {
+    "enabled": true,
+    "tolerance_angstrom": 1e-08,
+    "maximum_difference_angstrom": 3.523181746345e-12
+  },
+  "units": {
+    "s_sampling": "bohr",
+    "Q_and_Cartesian": "angstrom",
+    "angles": "radian",
+    "modal_momentum": "atomic momentum = hbar/bohr = electron_mass*bohr/atomic_time",
+    "cartesian_momentum": "atomic momentum = electron_mass*bohr/atomic_time",
+    "cartesian_velocity": "angstrom/fs",
+    "internally_saved_cartesian_velocity": "bohr/atomic_time"
+  },
+  "source_sha256": {
+    "a6_metadata.json": "6676a8bfe6a17576c720ad31e85b7512011ecd89de8f025e6828d79c2bb3f9de",
+    "fit_coefficients.dat": "ffe274a3b913f819fc016dd6bcbc189906f5458870f1d970639b02952cf210c1",
+    "internal_coordinates.json": "b1f7a6d9fc07dad00d3f5cef2ba83540ae897648571ab52fd624ab034084c053",
+    "momenta/vib1.dat": "1930fcc2ada1cbd0bebfe57488ae09bba39920de49dcdcee46174f56fd53c2be",
+    "momenta/vib2.dat": "ec5ddf5b4f47a1473369f9ee842b3566714337a61a980e27086ae34439598d82",
+    "momenta/vib3.dat": "76d6dbbe4c0e9a838f68d27e3e016ec11aa4425703bd56fb02542356bdbda887",
+    "momenta/vib4.dat": "a38c95e18eaf48519851065ef1ca13ae6b994871662f8fbe8ee852056eef40ed",
+    "momenta/vib5.dat": "fa11c3992203f6784d7e0b78162526226af9bdc2d0be8980ef4c046d2ab2a881",
+    "momenta/vib6.dat": "7d6f2c12659267a3b68db3c008d620de096d6b9f59a99aea4e06cd1e9f8c6943",
+    "probabilities/vib1.dat": "7371501ab3794f3df8b2049c8bf8a41c2e1bea4cede0a93d05029d50c148996a",
+    "probabilities/vib2.dat": "bed0f652a9a007bc58a341e5b8a29a7da6d860a7b699ce5fa45f8901412f1f7f",
+    "probabilities/vib3.dat": "f456431d50949d9504d0a3a0532011425b9adc24c479761b92a1a7e031a2c332",
+    "probabilities/vib4.dat": "5d063e5cc6d1df1034a6d4c8781197080f6cf6c93c475f0672e3ebbe61017740",
+    "probabilities/vib5.dat": "aff2a0064e2ba3e785ef61a177c835c8fe2ab80d754272745508442179359e1b",
+    "probabilities/vib6.dat": "e7fa86c3cc6f1d9a2b0acc6886d9857fe262b29b90a95d127ca501a4545db375",
+    "reference_data.npz": "78c879f99d93296cd7a979687b473e179c4c61db4f605e666f100bdeb1e56187",
+    "vib1/energies_qs.dat": "56e7dabe845760056096c402e06be37198d7f0daefa05b2e1dc39394108a18dc",
+    "vib1/path_geometries.npz": "11b8547cb97b8e14bce93244ce850be8876941a454804baa6bd9b2dbdefca5e6",
+    "vib2/energies_qs.dat": "be6624e40301f8cd2da883454f1cf1c5471cc576e8631f5d900fc020a3d296ff",
+    "vib2/path_geometries.npz": "a09d0437f28eb1ae0deae1693b843f502cffd39ae440e69b93e15588989dc64c",
+    "vib3/energies_qs.dat": "7d65066581ba6112491fc8af70677618ece24fa0414c9bde96a196680ef7fe2b",
+    "vib3/path_geometries.npz": "27c60caa41535e064d73c0f5f5fc08b8f64594c501b630764a08684a2e528e52",
+    "vib4/energies_qs.dat": "24b178b2c090b9a836bcf0a680a0e438702c57f887ebd17e52a6443b19533bd1",
+    "vib4/path_geometries.npz": "912be41168308f5e0e6d76cbedd0deb5dd085be02ca4d2c5e5d880ac5d3b935a",
+    "vib5/energies_qs.dat": "fb75c629a3b6e682358898fe22df71dbf53c79a24e50d473bf01ad6d160eba74",
+    "vib5/path_geometries.npz": "972ab13dc48a65847569fd0a3e18de1afeee5258db78cc8a00bf2924f28ca3c7",
+    "vib6/energies_qs.dat": "6a978c11330a76a4e8e59a43ec0c5cca3f22b4d34e87d14849e89c25abfd666f",
+    "vib6/path_geometries.npz": "aa2537db180cc678deb2fdc8455553aad0a192efd2109e798574051353aa454b"
+  },
+  "outputs": {
+    "thermal_anharmonic": {
+      "coordinate_system": "curvilinear",
+      "xyz_directory": "ensemble_anh_therm",
+      "all_geometries": "all_geometries_anh.xyz",
+      "all_velocities": "all_velocities_anh.xyz",
+      "all_momenta": "all_momenta_anh.xyz",
+      "sampled_coordinates": "sampled_coordinates_thermal_anharmonic.npz",
+      "histogram_directory": "histograms_anh"
+    },
+    "thermal_harmonic": {
+      "coordinate_system": "curvilinear",
+      "xyz_directory": "ensemble_har_therm",
+      "all_geometries": "all_geometries_har.xyz",
+      "all_velocities": "all_velocities_har.xyz",
+      "all_momenta": "all_momenta_har.xyz",
+      "sampled_coordinates": "sampled_coordinates_thermal_harmonic.npz",
+      "histogram_directory": "histograms_har"
+    },
+    "thermal_harmonic_cartesian": {
+      "coordinate_system": "cartesian",
+      "xyz_directory": "ensemble_har_cart",
+      "all_geometries": "all_geometries_har_cart.xyz",
+      "all_velocities": "all_velocities_har_cart.xyz",
+      "all_momenta": "all_momenta_har_cart.xyz",
+      "sampled_coordinates": "sampled_coordinates_thermal_harmonic_cartesian.npz",
+      "histogram_directory": "histograms_har_cart"
+    }
+  }
+}

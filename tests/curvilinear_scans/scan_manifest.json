@@ -1,0 +1,848 @@
+{
+  "stage": "curvilinear_scan_geometries_with_mass_coordinate",
+  "source_log": "/home/macias/hoso/multispec/multispec/anhdis_curv/b3lyp_631Gdp.log",
+  "source_log_sha256": "f56add9e9f4c651079a99f351fc3dfab6d261f1a4fe8934363a1e7449c0bc64a",
+  "n_atoms": 4,
+  "n_modes": 6,
+  "n_primitive_internals": 6,
+  "independent_rank": 6,
+  "selected_modes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "Q_energy_angstrom": [
+    -0.4,
+    -0.3,
+    -0.2,
+    -0.1,
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4
+  ],
+  "Q_energy_angstrom_by_mode": {
+    "1": [
+      -2.2,
+      -2.1,
+      -2.0,
+      -1.9,
+      -1.8,
+      -1.7,
+      -1.6,
+      -1.5,
+      -1.4,
+      -1.3,
+      -1.2,
+      -1.1,
+      -1.0,
+      -0.9,
+      -0.8,
+      -0.7,
+      -0.6,
+      -0.5,
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0,
+      1.1,
+      1.2,
+      1.3,
+      1.4,
+      1.5,
+      1.6,
+      1.7,
+      1.8,
+      1.9,
+      2.0
+    ],
+    "2": [
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4
+    ],
+    "3": [
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4
+    ],
+    "4": [
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4
+    ],
+    "5": [
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4
+    ],
+    "6": [
+      -0.4,
+      -0.3,
+      -0.2,
+      -0.1,
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4
+    ]
+  },
+  "path_Q_step_max_angstrom": 0.025,
+  "coordinate_definition": "xi(R)=U0.T W [S(R)-S0]=Q l_i; ds/dQ=sqrt(mu(Q)/mu(0))",
+  "mass_coordinate_quadrature": "cumulative Simpson on the dense Q grid",
+  "units": {
+    "cartesian": "angstrom",
+    "Q": "angstrom",
+    "s": "angstrom",
+    "mass": "amu",
+    "angles": "radian"
+  },
+  "energy_points": [
+    {
+      "mode": 1,
+      "Q_angstrom": -2.2,
+      "s_angstrom": -2.2308950206202445,
+      "mu_amu": 1.2874329738947607,
+      "xyz": "vib1/-2.20/vib1_-2.20.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -2.1,
+      "s_angstrom": -2.12651658322185,
+      "mu_amu": 1.2809740247110757,
+      "xyz": "vib1/-2.10/vib1_-2.10.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -2.0,
+      "s_angstrom": -2.022401159716468,
+      "mu_amu": 1.274481275270775,
+      "xyz": "vib1/-2.00/vib1_-2.00.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.9,
+      "s_angstrom": -1.9185536907655336,
+      "mu_amu": 1.2678155377346387,
+      "xyz": "vib1/-1.90/vib1_-1.90.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.8,
+      "s_angstrom": -1.8149844631222847,
+      "mu_amu": 1.2608589897783855,
+      "xyz": "vib1/-1.80/vib1_-1.80.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.7,
+      "s_angstrom": -1.711708035099968,
+      "mu_amu": 1.2535273454293,
+      "xyz": "vib1/-1.70/vib1_-1.70.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.6,
+      "s_angstrom": -1.608741696910929,
+      "mu_amu": 1.2457796881945704,
+      "xyz": "vib1/-1.60/vib1_-1.60.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.5,
+      "s_angstrom": -1.5061035650803158,
+      "mu_amu": 1.2376253936880666,
+      "xyz": "vib1/-1.50/vib1_-1.50.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.4,
+      "s_angstrom": -1.4038104301824794,
+      "mu_amu": 1.2291277194199748,
+      "xyz": "vib1/-1.40/vib1_-1.40.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.3,
+      "s_angstrom": -1.3018754928161018,
+      "mu_amu": 1.220403786582009,
+      "xyz": "vib1/-1.30/vib1_-1.30.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.2,
+      "s_angstrom": -1.200306135024812,
+      "mu_amu": 1.2116208216341406,
+      "xyz": "vib1/-1.20/vib1_-1.20.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.1,
+      "s_angstrom": -1.099101882752039,
+      "mu_amu": 1.20298869315983,
+      "xyz": "vib1/-1.10/vib1_-1.10.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -1.0,
+      "s_angstrom": -0.9982527178969371,
+      "mu_amu": 1.1947489702805791,
+      "xyz": "vib1/-1.00/vib1_-1.00.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.9,
+      "s_angstrom": -0.897737893113608,
+      "mu_amu": 1.187160963874706,
+      "xyz": "vib1/-0.90/vib1_-0.90.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.8,
+      "s_angstrom": -0.7975253853039805,
+      "mu_amu": 1.1804854685991417,
+      "xyz": "vib1/-0.80/vib1_-0.80.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.7,
+      "s_angstrom": -0.6975720919008395,
+      "mu_amu": 1.1749671834701458,
+      "xyz": "vib1/-0.70/vib1_-0.70.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.6,
+      "s_angstrom": -0.5978248262632941,
+      "mu_amu": 1.1708170133147466,
+      "xyz": "vib1/-0.60/vib1_-0.60.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.5,
+      "s_angstrom": -0.4982221065993393,
+      "mu_amu": 1.1681955915465605,
+      "xyz": "vib1/-0.50/vib1_-0.50.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.3986966620876917,
+      "mu_amu": 1.1671993831502157,
+      "xyz": "vib1/-0.40/vib1_-0.40.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.29917850889524056,
+      "mu_amu": 1.1678505877102292,
+      "xyz": "vib1/-0.30/vib1_-0.30.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.19959838819769748,
+      "mu_amu": 1.1700917732124398,
+      "xyz": "vib1/-0.20/vib1_-0.20.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.09989131822681685,
+      "mu_amu": 1.173785754171011,
+      "xyz": "vib1/-0.10/vib1_-0.10.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 1.1787207387242706,
+      "xyz": "vib1/0.00/vib1_0.00.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.10012216614258884,
+      "mu_amu": 1.18462028140639,
+      "xyz": "vib1/0.10/vib1_0.10.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.2005086522442987,
+      "mu_amu": 1.1911571604240392,
+      "xyz": "vib1/0.20/vib1_0.20.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.30117809976669685,
+      "mu_amu": 1.1979700090150023,
+      "xyz": "vib1/0.30/vib1_0.30.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.40213340961367505,
+      "mu_amu": 1.204681398192955,
+      "xyz": "vib1/0.40/vib1_0.40.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.5,
+      "s_angstrom": 0.5033616264646428,
+      "mu_amu": 1.2109160927382954,
+      "xyz": "vib1/0.50/vib1_0.50.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.6,
+      "s_angstrom": 0.6048345636407149,
+      "mu_amu": 1.21631835394554,
+      "xyz": "vib1/0.60/vib1_0.60.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.7,
+      "s_angstrom": 0.7065100754522389,
+      "mu_amu": 1.220567396989353,
+      "xyz": "vib1/0.70/vib1_0.70.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.8,
+      "s_angstrom": 0.8083338613617119,
+      "mu_amu": 1.2233903761471177,
+      "xyz": "vib1/0.80/vib1_0.80.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 0.9,
+      "s_angstrom": 0.9102416781659501,
+      "mu_amu": 1.2245725193196313,
+      "xyz": "vib1/0.90/vib1_0.90.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.0,
+      "s_angstrom": 1.0121618387664073,
+      "mu_amu": 1.2239642358377938,
+      "xyz": "vib1/1.00/vib1_1.00.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.1,
+      "s_angstrom": 1.1140178841769384,
+      "mu_amu": 1.2214851559283348,
+      "xyz": "vib1/1.10/vib1_1.10.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.2,
+      "s_angstrom": 1.2157313248909065,
+      "mu_amu": 1.2171251337925135,
+      "xyz": "vib1/1.20/vib1_1.20.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.3,
+      "s_angstrom": 1.3172243551444822,
+      "mu_amu": 1.21094227001279,
+      "xyz": "vib1/1.30/vib1_1.30.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.4,
+      "s_angstrom": 1.4184224470721913,
+      "mu_amu": 1.2030580115258713,
+      "xyz": "vib1/1.40/vib1_1.40.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.5,
+      "s_angstrom": 1.5192567309973226,
+      "mu_amu": 1.1936494007927911,
+      "xyz": "vib1/1.50/vib1_1.50.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.6,
+      "s_angstrom": 1.6196660646983703,
+      "mu_amu": 1.1829386068496053,
+      "xyz": "vib1/1.60/vib1_1.60.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.7,
+      "s_angstrom": 1.7195986916458574,
+      "mu_amu": 1.1711799910270244,
+      "xyz": "vib1/1.70/vib1_1.70.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.8,
+      "s_angstrom": 1.819013390169589,
+      "mu_amu": 1.1586451661489927,
+      "xyz": "vib1/1.80/vib1_1.80.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 1.9,
+      "s_angstrom": 1.9178800272344034,
+      "mu_amu": 1.1456067640525538,
+      "xyz": "vib1/1.90/vib1_1.90.xyz"
+    },
+    {
+      "mode": 1,
+      "Q_angstrom": 2.0,
+      "s_angstrom": 2.0161794556810086,
+      "mu_amu": 1.1323219065997343,
+      "xyz": "vib1/2.00/vib1_2.00.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.40460551120523724,
+      "mu_amu": 6.204932157768683,
+      "xyz": "vib2/-0.40/vib2_-0.40.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.3026303668353576,
+      "mu_amu": 6.142394056463214,
+      "xyz": "vib2/-0.30/vib2_-0.30.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.2011861301866658,
+      "mu_amu": 6.0767360373651576,
+      "xyz": "vib2/-0.20/vib2_-0.20.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.10030063828040647,
+      "mu_amu": 6.0082025955116665,
+      "xyz": "vib2/-0.10/vib2_-0.10.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 5.937071569519885,
+      "xyz": "vib2/0.00/vib2_0.00.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.09969170219824164,
+      "mu_amu": 5.863653402304744,
+      "xyz": "vib2/0.10/vib2_0.10.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.19875271436991448,
+      "mu_amu": 5.788289487706055,
+      "xyz": "vib2/0.20/vib2_0.20.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.297163909493795,
+      "mu_amu": 5.711349507869485,
+      "xyz": "vib2/0.30/vib2_0.30.xyz"
+    },
+    {
+      "mode": 2,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.3949090732689502,
+      "mu_amu": 5.633227644872164,
+      "xyz": "vib2/0.40/vib2_0.40.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.3983181973409956,
+      "mu_amu": 16.030591597251544,
+      "xyz": "vib3/-0.40/vib3_-0.40.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.2989616396663069,
+      "mu_amu": 16.05521235976863,
+      "xyz": "vib3/-0.30/vib3_-0.30.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.19949769049790364,
+      "mu_amu": 16.09998282991737,
+      "xyz": "vib3/-0.20/vib3_-0.20.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.09986429265910085,
+      "mu_amu": 16.164844413808698,
+      "xyz": "vib3/-0.10/vib3_-0.10.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 16.24966314781898,
+      "xyz": "vib3/0.00/vib3_0.00.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.10015567407774761,
+      "mu_amu": 16.354223771996114,
+      "xyz": "vib3/0.10/vib3_0.10.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.20066189861555284,
+      "mu_amu": 16.478223224444214,
+      "xyz": "vib3/0.20/vib3_0.20.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.30157616079529326,
+      "mu_amu": 16.621264750448336,
+      "xyz": "vib3/0.30/vib3_0.30.xyz"
+    },
+    {
+      "mode": 3,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.4029539025197719,
+      "mu_amu": 16.78285414992094,
+      "xyz": "vib3/0.40/vib3_0.40.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.39436096068569465,
+      "mu_amu": 1.273484545163329,
+      "xyz": "vib4/-0.40/vib4_-0.40.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.2968043867329764,
+      "mu_amu": 1.2908621434491914,
+      "xyz": "vib4/-0.30/vib4_-0.30.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.1985722290355371,
+      "mu_amu": 1.3090828143483653,
+      "xyz": "vib4/-0.20/vib4_-0.20.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.09964190648485938,
+      "mu_amu": 1.3279103279442028,
+      "xyz": "vib4/-0.10/vib4_-0.10.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 1.3471155478123131,
+      "xyz": "vib4/0.00/vib4_0.00.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.10035837808804998,
+      "mu_amu": 1.3664826435511368,
+      "xyz": "vib4/0.10/vib4_0.10.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.201430412023008,
+      "mu_amu": 1.3858143615440213,
+      "xyz": "vib4/0.20/vib4_0.20.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.30320655463539364,
+      "mu_amu": 1.404936155960427,
+      "xyz": "vib4/0.30/vib4_0.30.xyz"
+    },
+    {
+      "mode": 4,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.40567158848908075,
+      "mu_amu": 1.4236990280694726,
+      "xyz": "vib4/0.40/vib4_0.40.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.3988259422333752,
+      "mu_amu": 5.889015558199395,
+      "xyz": "vib5/-0.40/vib5_-0.40.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.29931963127450456,
+      "mu_amu": 5.902604174483484,
+      "xyz": "vib5/-0.30/vib5_-0.30.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.1996898098242049,
+      "mu_amu": 5.918249598971852,
+      "xyz": "vib5/-0.20/vib5_-0.20.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.099920778903974,
+      "mu_amu": 5.935599019199121,
+      "xyz": "vib5/-0.10/vib5_-0.10.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 5.954270076383515,
+      "xyz": "vib5/0.00/vib5_0.00.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.1000817072655763,
+      "mu_amu": 5.973859806885244,
+      "xyz": "vib5/0.10/vib5_0.10.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.20033005215458888,
+      "mu_amu": 5.993954684814397,
+      "xyz": "vib5/0.20/vib5_0.20.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.3007472513169481,
+      "mu_amu": 6.014141599962469,
+      "xyz": "vib5/0.30/vib5_0.30.xyz"
+    },
+    {
+      "mode": 5,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.40133210361939486,
+      "mu_amu": 6.0340195389867555,
+      "xyz": "vib5/0.40/vib5_0.40.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": -0.4,
+      "s_angstrom": -0.4000514213740198,
+      "mu_amu": 1.0730331820110672,
+      "xyz": "vib6/-0.40/vib6_-0.40.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": -0.3,
+      "s_angstrom": -0.30002796814431626,
+      "mu_amu": 1.0728658599329082,
+      "xyz": "vib6/-0.30/vib6_-0.30.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": -0.2,
+      "s_angstrom": -0.20001200216591697,
+      "mu_amu": 1.0727119692558604,
+      "xyz": "vib6/-0.20/vib6_-0.20.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": -0.1,
+      "s_angstrom": -0.10000289280661956,
+      "mu_amu": 1.0725717222550728,
+      "xyz": "vib6/-0.10/vib6_-0.10.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": 0.0,
+      "s_angstrom": 0.0,
+      "mu_amu": 1.072445305532466,
+      "xyz": "vib6/0.00/vib6_0.00.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": 0.1,
+      "s_angstrom": 0.09999732452516735,
+      "mu_amu": 1.0723328791654625,
+      "xyz": "vib6/0.10/vib6_0.10.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": 0.2,
+      "s_angstrom": 0.1999897359705028,
+      "mu_amu": 1.0722345756255238,
+      "xyz": "vib6/0.20/vib6_0.20.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": 0.3,
+      "s_angstrom": 0.2999778951574876,
+      "mu_amu": 1.0721504991613406,
+      "xyz": "vib6/0.30/vib6_0.30.xyz"
+    },
+    {
+      "mode": 6,
+      "Q_angstrom": 0.4,
+      "s_angstrom": 0.3999624671790177,
+      "mu_amu": 1.0720807250907813,
+      "xyz": "vib6/0.40/vib6_0.40.xyz"
+    }
+  ],
+  "modes": [
+    {
+      "mode": 1,
+      "q_min_angstrom": -2.2,
+      "q_max_angstrom": 2.0,
+      "energy_point_count": 43,
+      "mu0_amu": 1.1787207387242706,
+      "min_mu_amu": 1.1323219065997343,
+      "max_mu_amu": 1.2874329738947607,
+      "max_abs_relative_mu_percent": 9.222900013462842,
+      "s_min_angstrom": -2.2308950206202445,
+      "s_max_angstrom": 2.0161794556810086
+    },
+    {
+      "mode": 2,
+      "q_min_angstrom": -0.4,
+      "q_max_angstrom": 0.4,
+      "energy_point_count": 9,
+      "mu0_amu": 5.937071569519885,
+      "min_mu_amu": 5.633227644872164,
+      "max_mu_amu": 6.204932157768683,
+      "max_abs_relative_mu_percent": 5.117740641827762,
+      "s_min_angstrom": -0.40460551120523724,
+      "s_max_angstrom": 0.3949090732689502
+    },
+    {
+      "mode": 3,
+      "q_min_angstrom": -0.4,
+      "q_max_angstrom": 0.4,
+      "energy_point_count": 9,
+      "mu0_amu": 16.24966314781898,
+      "min_mu_amu": 16.030591597251544,
+      "max_mu_amu": 16.78285414992094,
+      "max_abs_relative_mu_percent": 3.2812434156429093,
+      "s_min_angstrom": -0.3983181973409956,
+      "s_max_angstrom": 0.4029539025197719
+    },
+    {
+      "mode": 4,
+      "q_min_angstrom": -0.4,
+      "q_max_angstrom": 0.4,
+      "energy_point_count": 9,
+      "mu0_amu": 1.3471155478123131,
+      "min_mu_amu": 1.273484545163329,
+      "max_mu_amu": 1.4236990280694726,
+      "max_abs_relative_mu_percent": 5.684997131948277,
+      "s_min_angstrom": -0.39436096068569465,
+      "s_max_angstrom": 0.40567158848908075
+    },
+    {
+      "mode": 5,
+      "q_min_angstrom": -0.4,
+      "q_max_angstrom": 0.4,
+      "energy_point_count": 9,
+      "mu0_amu": 5.954270076383515,
+      "min_mu_amu": 5.889015558199395,
+      "max_mu_amu": 6.0340195389867555,
+      "max_abs_relative_mu_percent": 1.33936589338719,
+      "s_min_angstrom": -0.3988259422333752,
+      "s_max_angstrom": 0.40133210361939486
+    },
+    {
+      "mode": 6,
+      "q_min_angstrom": -0.4,
+      "q_max_angstrom": 0.4,
+      "energy_point_count": 9,
+      "mu0_amu": 1.072445305532466,
+      "min_mu_amu": 1.0720807250907813,
+      "max_mu_amu": 1.0730331820110672,
+      "max_abs_relative_mu_percent": 0.0548164531625428,
+      "s_min_angstrom": -0.4000514213740198,
+      "s_max_angstrom": 0.3999624671790177
+    }
+  ],
+  "diagnostics": {
+    "B_step_difference": 5.273581571429986e-11,
+    "primitive_mode_tangent_error": 5.1236792586450974e-11,
+    "rigid_motion_error": 2.2204488248078746e-11,
+    "independent_span_error": 1.3322676295501878e-15,
+    "minimum_original_projected_mass_cosine": 0.9996283294071523,
+    "maximum_local_tangent_error": 2.188518536739461e-07,
+    "maximum_finite_internal_residual": 4.385380947269368e-15,
+    "minimum_finite_jacobian_singular_ratio": 0.1942653289131125,
+    "maximum_path_mass_tangent_error": 3.164086091377143e-09,
+    "maximum_printed_mode_norm_deviation": 0.005314119935343586,
+    "maximum_printed_vector_vs_gaussian_mass_difference_percent": 1.4605522230335177
+  },
+  "gaussian_inputs_generated": false,
+  "gaussian_jobs_submitted": false,
+  "future_sampling": "Sample s, invert monotonic s(Q), and use saved Cartesian path geometries as back-transformation guesses."
+}

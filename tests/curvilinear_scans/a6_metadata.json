@@ -1,0 +1,37 @@
+{
+  "stage": "curvilinear_quantum_thermal_distribution",
+  "coordinate": "s",
+  "grid_unit": "bohr",
+  "saved_coordinate_unit": "angstrom_and_bohr",
+  "mass": "mu(0)",
+  "mass_unit": "amu_converted_to_electron_masses",
+  "hamiltonian": "H=-(1/(2*mu0))*d2/ds2 + V(s)",
+  "potential_representation": "Mode-selectable derivative polynomial or PCHIP interpolation inside the ab initio interval with confining quadratic endpoint tails",
+  "temperature_K": 298.15,
+  "thermal_weight_cutoff": 0.001,
+  "grid_half_length_bohr": 7.0,
+  "grid_points": 1400,
+  "selected_modes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "potential_models": {
+    "1": "pchip",
+    "2": "polynomial",
+    "3": "polynomial",
+    "4": "polynomial",
+    "5": "polynomial",
+    "6": "polynomial"
+  },
+  "probability_normalization": "integral P(s) ds = 1 with ds in bohr",
+  "momentum_definition": "phi(p_s)=(2*pi)^(-1/2)*integral psi(s)*exp(-i*p_s*s) ds; rho(p_s,T)=sum_v w_v*|phi_v(p_s)|^2",
+  "momentum_unit": "atomic momentum hbar/bohr = electron_mass*bohr/atomic_time",
+  "momentum_probability_normalization": "integral rho(p_s,T) dp_s = 1",
+  "phase_space_model": "positive separable product of independently sampled coordinate and momentum marginals; no anharmonic Wigner quasiprobability",
+  "momentum_fft_padding_factor": 8,
+  "future_sampling": "sample s and p_s independently; convert s to angstrom; invert s(Q); recover curvilinear Cartesian geometry and project p_s to Cartesian velocities"
+}

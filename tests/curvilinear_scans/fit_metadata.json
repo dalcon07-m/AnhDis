@@ -1,0 +1,58 @@
+{
+  "stage": "curvilinear_potential_fit_in_constant_mass_coordinate",
+  "coordinate": "s",
+  "coordinate_definition": "ds/dQ=sqrt(mu(Q)/mu(0))",
+  "constant_hamiltonian_mass": "mu(0)",
+  "potential_definition": "V(s(Q))=E(R(Q))-E(R(0))",
+  "selected_modes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "default_fit_model": "polynomial",
+  "fit_model_by_mode": {
+    "1": "pchip"
+  },
+  "default_fit_degree": 4,
+  "fit_degree_by_mode": {},
+  "stationary_equilibrium": true,
+  "positive_highest_even_coefficient": true,
+  "outward_monotonic_by_mode": {
+    "1": true,
+    "2": true
+  },
+  "shape_constraint_grid_points": 1001,
+  "stability_half_range_bohr": 7.0,
+  "cubic_limit_convention": "|a3| <= factor*a2_guess; kc=d3V/ds3=6*a3",
+  "default_cubic_limit_factor": 10.0,
+  "cubic_limit_factor_by_mode": {
+    "1": null,
+    "2": null,
+    "4": 1.0
+  },
+  "fit_Q_range_angstrom_by_mode": {},
+  "coefficient_convention": "V(s)=sum_n [d^nV/ds^n at 0] s^n/n!",
+  "coefficient_aliases": {
+    "k": "d2V/ds2",
+    "kc": "kcub=d3V/ds3",
+    "kq": "d4V/ds4",
+    "k5": "d5V/ds5",
+    "k6": "d6V/ds6"
+  },
+  "full_potential_half_range_bohr": 7.0,
+  "full_potential_half_range_angstrom": 3.704240476321,
+  "pchip_tail_curvature_factor": 1.0,
+  "pchip_tail_curvature_factor_by_mode": {},
+  "full_potential_warning": "Polynomial values outside the ab initio scan are extrapolations; PCHIP modes use endpoint-matched confining quadratic tails.",
+  "units": {
+    "s": "angstrom",
+    "Q": "angstrom",
+    "mass": "amu",
+    "energy": "hartree",
+    "frequency": "cm-1"
+  },
+  "future_sampling": "Solve in s; sample s; invert saved monotonic s(Q); recover Cartesian path geometry."
+}

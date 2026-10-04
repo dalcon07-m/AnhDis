@@ -1,0 +1,17 @@
+AnhDis curvilinear a1: PASS
+Atoms: 4; Gaussian modes: 6; primitive internals: 6; rank: 6
+Modes reconstructed in this run: [1]
+Modes present in the scan: [1, 2, 3, 4, 5, 6]
+Electronic-energy geometries present: 88
+Minimum original/projected mass cosine: 0.9996283294
+Maximum local tangent error: 2.189e-07
+Maximum norm deviation of rounded printed modes: 5.314e-03
+Maximum printed-vector/Gaussian reduced-mass difference: 1.461%
+Maximum finite internal residual: 4.385e-15
+Minimum finite Jacobian singular ratio: 1.943e-01
+Mode 1: mu(0)=1.17872074 amu; max |Delta mu/mu0|=9.223%; Q=[-2.20,2.00] Ang; s=[-2.230895,2.016179] Ang
+Mode 2: mu(0)=5.93707157 amu; max |Delta mu/mu0|=5.118%; Q=[-0.40,0.40] Ang; s=[-0.404606,0.394909] Ang
+Mode 3: mu(0)=16.24966315 amu; max |Delta mu/mu0|=3.281%; Q=[-0.40,0.40] Ang; s=[-0.398318,0.402954] Ang
+Mode 4: mu(0)=1.34711555 amu; max |Delta mu/mu0|=5.685%; Q=[-0.40,0.40] Ang; s=[-0.394361,0.405672] Ang
+Mode 5: mu(0)=5.95427008 amu; max |Delta mu/mu0|=1.339%; Q=[-0.40,0.40] Ang; s=[-0.398826,0.401332] Ang
+Mode 6: mu(0)=1.07244531 amu; max |Delta mu/mu0|=0.055%; Q=[-0.40,0.40] Ang; s=[-0.400051,0.399962] Ang
